@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, Gauge, Send, Star, User } from "lucide-react";
@@ -10,6 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
+import { AnswerControl } from "@/components/feedback/AnswerControl";
+import { useRcaConfig } from "@/hooks/useRcaConfig";
+import {
+  asFeedbackQuestion, caseCauses, orphanedAnswers, questionsForCauses,
+} from "@/lib/rcaQuestions";
+import { answerMap, type AnswerMap } from "@/lib/feedbackQuestions";
 import { npsCategory, ratingLabel } from "@/lib/feedbackScores";
 import {
   RCA_CLOSED_STATUSES,
@@ -62,9 +68,25 @@ export default function FeedbackRcaDetail() {
       qc.invalidateQueries({ queryKey: ["patient-feedback", "by-patient"] }),
     ]);
 
-  const patch = async (changes: { status?: string; assigned_to?: string | null; root_cause?: string | null }) => {
+  const { causes, questions } = useRcaConfig();
+  const chosen = caseCauses(rca?.root_causes ?? rca?.root_cause);
+  const asked = questionsForCauses(causes, questions, chosen);
+  const [answers, setAnswers] = useState<AnswerMap>({});
+  // Seeded from the case, then held locally so typing is not a round trip.
+  useEffect(() => { setAnswers(answerMap(rca?.answers)); }, [rca?.id, rca?.answers]);
+  const orphaned = orphanedAnswers(asked, answers);
+
+  const patch = async (changes: {
+    status?: string; assigned_to?: string | null; root_cause?: string | null;
+    root_causes?: string[]; answers?: AnswerMap;
+  }) => {
     if (!rca) return;
-    const { error: err } = await supabase.from("feedback_rca").update(changes).eq("id", rca.id);
+    // answers is jsonb; the generated types want Json, and an AnswerMap is
+    // one round-trip away from being exactly that.
+    const payload = changes.answers
+      ? { ...changes, answers: JSON.parse(JSON.stringify(changes.answers)) }
+      : changes;
+    const { error: err } = await supabase.from("feedback_rca").update(payload).eq("id", rca.id);
     if (err) {
       toast.error(err.message);
       return;
@@ -184,15 +206,32 @@ export default function FeedbackRcaDetail() {
               placeholder="Choose someone"
             />
           </div>
-          <div className="space-y-1 sm:col-span-2">
+          <div className="space-y-2 sm:col-span-2">
             <Label>Root cause</Label>
-            <SearchableSelect
-              value={rca.root_cause || ""}
-              onChange={(root_cause) => patch({ root_cause: root_cause || null })}
-              options={[{ id: "", name: "Not established yet" }, ...RCA_ROOT_CAUSES.map((c) => ({ id: c.value, name: c.label }))]}
-              placeholder="What went wrong"
-            />
-            {closed && !rca.root_cause && (
+            <p className="text-xs text-muted-foreground">
+              More than one may apply. Choosing one brings up what the clinic asks about it.
+            </p>
+            {/* A retired cause still shows when a case already carries it: a
+                case worked months ago should read the way it was worked. */}
+            <div className="flex flex-wrap gap-2">
+              {causes
+                .filter((c) => c.is_active || chosen.includes(c.code))
+                .map((c) => {
+                  const on = chosen.includes(c.code);
+                  return (
+                    <Button
+                      key={c.id}
+                      type="button"
+                      size="sm"
+                      variant={on ? "default" : "outline"}
+                      onClick={() => patch({ root_causes: on ? chosen.filter((x) => x !== c.code) : [...chosen, c.code] })}
+                    >
+                      {c.label}
+                    </Button>
+                  );
+                })}
+            </div>
+            {closed && !chosen.length && (
               <p className="text-xs text-warning">
                 This case is closed with no cause recorded, so it will not appear in any count of why patients
                 are unhappy.
@@ -200,6 +239,46 @@ export default function FeedbackRcaDetail() {
             )}
           </div>
         </section>
+
+        {/* What the clinic asks once it knows why. Sits directly BELOW the
+            cause picker, because the questions follow from the choice made
+            there - above it, somebody would pick a cause and have to scroll
+            back up to find what appeared. Configured per cause at
+            Admin > Feedback; a case with no cause chosen shows nothing. */}
+        {asked.length > 0 && (
+          <section className="rounded-lg border p-4 space-y-4" data-testid="rca-followup">
+            <div>
+              <h2 className="font-semibold">About this cause</h2>
+              <p className="text-xs text-muted-foreground">Answers are saved as you go.</p>
+            </div>
+            {asked.map((q) => (
+              <div key={q.id} className="space-y-2">
+                <Label className="text-sm">
+                  {q.question_text}
+                  {q.is_required && <span className="text-destructive"> *</span>}
+                </Label>
+                {q.help_text && <p className="text-xs text-muted-foreground">{q.help_text}</p>}
+                <AnswerControl
+                  question={asFeedbackQuestion(q)}
+                  value={answers[q.id] ?? null}
+                  onChange={(value) => {
+                    const next = { ...answers, [q.id]: value };
+                    setAnswers(next);
+                    void patch({ answers: next });
+                  }}
+                />
+              </div>
+            ))}
+            {orphaned.length > 0 && (
+              // Said out loud rather than hidden: the answers are still in the
+              // record, and a cause can be put back to see them again.
+              <p className="text-xs text-muted-foreground border-t pt-3">
+                {orphaned.length} earlier answer{orphaned.length === 1 ? "" : "s"} belonged to a cause that is no
+                longer chosen. {orphaned.length === 1 ? "It is" : "They are"} kept, not deleted.
+              </p>
+            )}
+          </section>
+        )}
 
         <section className="space-y-3">
           <h2 className="font-semibold text-sm">

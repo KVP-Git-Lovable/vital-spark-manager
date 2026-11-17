@@ -2238,6 +2238,8 @@ export type Database = {
           resolved_at: string | null
           resolved_by: string | null
           root_cause: string | null
+          root_causes: string[]
+          answers: Json
           service_rating_at_open: number
           status: string
           updated_at: string
@@ -2255,6 +2257,8 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           root_cause?: string | null
+          root_causes?: string[]
+          answers?: Json
           service_rating_at_open: number
           status?: string
           updated_at?: string
@@ -2272,6 +2276,8 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           root_cause?: string | null
+          root_causes?: string[]
+          answers?: Json
           service_rating_at_open?: number
           status?: string
           updated_at?: string
@@ -2361,6 +2367,87 @@ export type Database = {
           singleton?: boolean
           nps_at_or_below?: number
           rating_at_or_below?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      rca_root_causes: {
+        Row: {
+          id: string
+          code: string
+          label: string
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          code: string
+          label: string
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          code?: string
+          label?: string
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      rca_questions: {
+        Row: {
+          id: string
+          cause_id: string
+          question_text: string
+          help_text: string
+          question_type: string
+          options: Json
+          sort_order: number
+          is_active: boolean
+          is_required: boolean
+          ai_generated: boolean
+          created_at: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          cause_id: string
+          question_text: string
+          help_text?: string
+          question_type?: string
+          options?: Json
+          sort_order?: number
+          is_active?: boolean
+          is_required?: boolean
+          ai_generated?: boolean
+          created_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          cause_id?: string
+          question_text?: string
+          help_text?: string
+          question_type?: string
+          options?: Json
+          sort_order?: number
+          is_active?: boolean
+          is_required?: boolean
+          ai_generated?: boolean
+          created_at?: string
           updated_at?: string
           updated_by?: string | null
         }

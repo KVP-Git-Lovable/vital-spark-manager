@@ -22,6 +22,11 @@ export interface RcaCase {
   patient_id: string;
   status: string;
   root_cause: string | null;
+  /** Every cause on the case. root_cause is the first of these, kept in
+   *  step by a trigger so the published build still reads one value. */
+  root_causes: string[] | null;
+  /** Answers to the follow-up questions of the causes chosen. */
+  answers: unknown;
   resolution_note: string | null;
   opened_reason: string;
   nps_score_at_open: number;

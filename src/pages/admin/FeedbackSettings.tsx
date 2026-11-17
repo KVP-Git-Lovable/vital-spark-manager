@@ -17,6 +17,7 @@ import { SettingRow } from "@/components/attendance/SettingRow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FeedbackQuestionsEditor } from "@/components/feedback/FeedbackQuestionsEditor";
 import { QuestionThresholds } from "@/components/feedback/QuestionThresholds";
+import { RcaCausesEditor } from "@/components/feedback/RcaCausesEditor";
 
 /**
  * Which feedback gets somebody's name on it.
@@ -126,6 +127,7 @@ export default function FeedbackSettings() {
         <TabsList>
           <TabsTrigger value="questions">Questions</TabsTrigger>
           <TabsTrigger value="rules">When a case opens</TabsTrigger>
+          <TabsTrigger value="causes">Case causes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="questions" className="pt-4">
@@ -206,6 +208,10 @@ export default function FeedbackSettings() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="causes" className="pt-4">
+          <RcaCausesEditor canEdit={!!isAdmin} />
         </TabsContent>
       </Tabs>
     </div>

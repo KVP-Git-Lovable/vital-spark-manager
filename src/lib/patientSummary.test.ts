@@ -216,6 +216,32 @@ describe("where the gate is applied", () => {
     expect(section).toMatch(/if \(!autoStart \|\| started\.current \|\| written\) return;/);
   });
 
+  it("shows the patient section alone, not the clinical article beside it", () => {
+    // Writing the patient's version used to happen in the full editor, with the
+    // clinical summary and protocol on screen - two articles at once, and the
+    // wrong one in front of the person.
+    const editor = read("src/components/knowledge/ArticleEditor.tsx");
+    expect(editor).toContain('useState(start === "patient-summary")');
+    expect(editor).toContain("{!patientOnly && <>");
+    expect(editor).toContain("{!patientOnly && !proposal && <ResourceEditor");
+    expect(editor).toContain("{!patientOnly && !proposal && <KnowledgePicture");
+    // and nothing is lost - the rest is one click away
+    expect(editor).toContain("Show the full article");
+    expect(editor).toContain("setPatientOnly(false)");
+  });
+
+  it("keeps the clinical AI's Stop button to the clinical AI", () => {
+    // One shared busy flag meant a patient-summary run greyed out "AI Enrich &
+    // Review" and put a Stop beside it, which aborted a controller that was not
+    // running. The flags are separate: busy blocks saving, drafting is this
+    // editor's own run.
+    const editor = read("src/components/knowledge/ArticleEditor.tsx");
+    expect(editor).toMatch(/\{drafting && <Button variant="ghost" onClick=\{\(\) => abort\.current\?\.abort\(\)\}/);
+    expect(editor).not.toMatch(/\{busy && <Button variant="ghost" onClick=\{\(\) => abort\.current\?\.abort\(\)\}/);
+    // saving still waits for anything at all to finish
+    expect(editor).toContain("disabled={save.isPending || busy || !!proposal}");
+  });
+
   it("says out loud that it is working", () => {
     const section = read("src/components/knowledge/PatientSummaryEditor.tsx");
     expect(section).toContain('data-testid="patient-summary-working"');

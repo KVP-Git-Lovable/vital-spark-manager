@@ -40,25 +40,47 @@ export function ArticleEditor({ article, cloneFrom, serviceId, start, onClose }:
   const [titleEdited, setTitleEdited] = useState(!!article || !!cloneFrom);
   const [group] = useState(() => crypto.randomUUID());
   const [proposal, setProposal] = useState<KnowledgeProposal | null>(null);
+  /**
+   * `busy` is "something somewhere is working, do not let this be saved" - the
+   * resource upload, the picture, the patient summary and the article draft all
+   * raise it. `drafting` is only THIS editor's own AI run.
+   *
+   * They were one flag, so writing a patient summary greyed out the clinical
+   * "AI Enrich & Review" button and put a Stop beside it - which read as the
+   * clinical article being rewritten, and did nothing when pressed, because it
+   * aborts the article draft's controller and no article draft was running.
+   */
   const [busy, setBusy] = useState(false);
+  const [drafting, setDrafting] = useState(false);
+  /**
+   * Opened from "Write patient summary": show that section and nothing else.
+   *
+   * Landing in the full editor mid-generation put the clinical summary and
+   * protocol on screen while the patient's version was being written, which is
+   * two articles at once and reads as the wrong thing happening. The rest is
+   * one click away and nothing is lost.
+   */
+  const [patientOnly, setPatientOnly] = useState(start === "patient-summary");
   const abort = useRef<AbortController>();
   useEffect(() => () => abort.current?.abort(), []);
   /**
-   * Land on the section the caller asked for.
+   * Keep the patient section in view when the full article is revealed.
    *
-   * Opened from the empty "For the patient" tab, this sheet otherwise starts at
-   * the top - service, category, title, demographics, the AI bar, summary and
-   * five clinical textareas above the thing the person came to write. The frame
-   * of delay is the sheet's own open animation: the section has no layout
-   * position until it has rendered inside it.
+   * Opened from "Write patient summary" the section is the only thing on
+   * screen, so nothing needs scrolling. Pressing "Show the full article" drops
+   * the service, title, demographics, AI bar, summary and five clinical
+   * textareas in above it, which would otherwise push the thing the person is
+   * working on off the bottom. The frame of delay lets those render and take
+   * their height first; without it the section has no layout position to
+   * scroll to yet.
    */
   useEffect(() => {
-    if (start !== "patient-summary") return;
+    if (start !== "patient-summary" || patientOnly) return;
     const timer = setTimeout(() => {
       document.getElementById(PATIENT_SUMMARY_SECTION_ID)?.scrollIntoView({ block: "start", behavior: "smooth" });
-    }, 250);
+    }, 120);
     return () => clearTimeout(timer);
-  }, [start]);
+  }, [start, patientOnly]);
   const { data: categories = [] } = useKnowledgeCategories();
   const { data: services = [] } = useKnowledgeServices();
   useEffect(() => {
@@ -78,15 +100,19 @@ export function ArticleEditor({ article, cloneFrom, serviceId, start, onClose }:
   }, onSuccess: async () => { await Promise.all([qc.invalidateQueries({ queryKey: ["knowledge"] }), qc.invalidateQueries({ queryKey: ["knowledge-revisions", article?.id] })]); toast.success("Article saved"); onClose(); }, onError: (e: Error) => toast.error(e.message) });
   const generate = async () => {
     if (!form.service_id || !form.category_id) { toast.error("Choose a service and category first"); return; }
-    abort.current = new AbortController(); setBusy(true);
+    abort.current = new AbortController(); setBusy(true); setDrafting(true);
     try { setProposal(await draftKnowledge({ service_id: form.service_id, category_id: form.category_id, gender: form.gender, age_rule: form.age_rule, min_age: form.min_age, max_age: form.max_age, current: form.clinical_protocol ? { title: form.title, summary: form.summary, ...Object.fromEntries(clinicalFields.map(([key]) => [key, form[key]])), is_critical: form.is_critical } : null }, abort.current.signal)); }
     catch (e) { if (!(e instanceof Error && e.name === "AbortError")) toast.error(e instanceof Error ? e.message : "AI draft failed"); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setDrafting(false); }
   };
   return <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}><SheetContent className="w-screen sm:max-w-5xl overflow-y-auto">
-    <SheetHeader><SheetTitle>{article ? "Edit Knowledge Article" : cloneFrom ? "Clone Knowledge Article" : "New Knowledge Article"}</SheetTitle></SheetHeader>
+    <SheetHeader><SheetTitle>{patientOnly ? "Patient summary" : article ? "Edit Knowledge Article" : cloneFrom ? "Clone Knowledge Article" : "New Knowledge Article"}</SheetTitle></SheetHeader>
     <div className="space-y-5 py-5">
-      <div className="grid sm:grid-cols-2 gap-4">
+      {patientOnly && <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+        <p className="text-sm text-muted-foreground min-w-0">Patient's version of <span className="font-medium text-foreground">{form.title}</span></p>
+        <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setPatientOnly(false)}>Show the full article</Button>
+      </div>}
+      {!patientOnly && <><div className="grid sm:grid-cols-2 gap-4">
         <div className="space-y-1"><Label>Service *</Label><SearchableSelect value={form.service_id} onChange={(service_id) => setForm({ ...form, service_id })} options={services} placeholder="Choose service" /></div>
         <div className="space-y-1"><Label>Category *</Label><SearchableSelect value={form.category_id} onChange={(category_id) => setForm({ ...form, category_id })} options={categories.filter((c) => c.is_active || c.id === form.category_id)} placeholder="Choose category" /></div>
       </div>
@@ -97,11 +123,12 @@ export function ArticleEditor({ article, cloneFrom, serviceId, start, onClose }:
       </div>
       {form.age_rule === "custom_range" && <div className="grid grid-cols-2 gap-4">{(["min_age", "max_age"] as const).map((key) => <div key={key}><Label htmlFor={key}>{key === "min_age" ? "Minimum age" : "Maximum age"}</Label><Input id={key} type="number" min={0} max={150} value={form[key] ?? ""} onChange={(e) => setForm({ ...form, [key]: e.target.value === "" ? null : Number(e.target.value) })} /></div>)}</div>}
       <div className="flex flex-wrap gap-5"><Label className="flex items-center gap-2"><Switch checked={form.is_critical} onCheckedChange={(is_critical) => setForm({ ...form, is_critical })} />Critical safety alert</Label><Label className="flex items-center gap-2"><Switch checked={form.is_active} onCheckedChange={(is_active) => setForm({ ...form, is_active })} />Active</Label></div>
-      <div className="flex flex-wrap gap-2 border-y py-3"><Button variant="outline" onClick={generate} disabled={busy || save.isPending}><Sparkles className="h-4 w-4 mr-2" />{form.clinical_protocol ? "AI Enrich & Review" : "Generate AI Draft"}</Button>{busy && <Button variant="ghost" onClick={() => abort.current?.abort()}><Loader2 className="h-4 w-4 mr-2 animate-spin" />Stop</Button>}</div>
+      <div className="flex flex-wrap gap-2 border-y py-3"><Button variant="outline" onClick={generate} disabled={busy || save.isPending}><Sparkles className="h-4 w-4 mr-2" />{form.clinical_protocol ? "AI Enrich & Review" : "Generate AI Draft"}</Button>{drafting && <Button variant="ghost" onClick={() => abort.current?.abort()}><Loader2 className="h-4 w-4 mr-2 animate-spin" />Stop</Button>}</div>
       {proposal ? <section className="space-y-4"><h2 className="font-semibold">Review AI suggestion</h2><p className="text-sm text-warning whitespace-pre-wrap">{proposal.ai_change_summary}</p><div className="grid md:grid-cols-2 gap-5"><div className="min-w-0"><h3 className="font-medium mb-3">Current article</h3><ArticleContent article={{ ...form, resources }} /></div><div className="min-w-0 border-l pl-4"><h3 className="font-medium mb-3">Proposed article · {proposal.title}</h3><ArticleContent article={proposal} /></div></div><div className="flex gap-2"><Button onClick={() => { const { resources: suggested, ...content } = proposal; setForm({ ...form, ...content, title: form.title, ai_generated: true, status: "draft" }); setResources([...resources, ...articleResources(suggested)].slice(0, 50)); setProposal(null); }}>Accept into draft</Button><Button variant="outline" onClick={() => setProposal(null)}>Discard suggestion</Button></div></section> : <>
         <div><Label htmlFor="article-summary">Summary</Label><Textarea id="article-summary" rows={3} value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} /></div>
         {clinicalFields.map(([key, label]) => <div key={key}><Label htmlFor={`article-${key}`}>{label}</Label><Textarea id={`article-${key}`} rows={key === "clinical_protocol" ? 8 : 4} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} /></div>)}
         {form.ai_change_summary && <p className="text-sm text-muted-foreground whitespace-pre-wrap">AI change summary: {form.ai_change_summary}</p>}
+      </>}
       </>}
       {!proposal && <PatientSummaryEditor
         summary={form.patient_summary}
@@ -111,8 +138,8 @@ export function ArticleEditor({ article, cloneFrom, serviceId, start, onClose }:
         autoStart={start === "patient-summary"}
         onBusyChange={setBusy}
       />}
-      {!proposal && <ResourceEditor value={resources} onChange={setResources} group={group} onBusyChange={setBusy} />}
-      {!proposal && <KnowledgePicture serviceId={form.service_id} group={group} onBusyChange={setBusy} onAdd={(resource) => setResources((current) => [...current, resource])} />}
+      {!patientOnly && !proposal && <ResourceEditor value={resources} onChange={setResources} group={group} onBusyChange={setBusy} />}
+      {!patientOnly && !proposal && <KnowledgePicture serviceId={form.service_id} group={group} onBusyChange={setBusy} onAdd={(resource) => setResources((current) => [...current, resource])} />}
       <div className="flex flex-wrap gap-2 border-t pt-4"><Button variant="outline" disabled={save.isPending || busy || !!proposal} onClick={() => save.mutate("draft")}><Save className="h-4 w-4 mr-2" />Save Draft</Button><Button variant="outline" disabled={save.isPending || busy || !!proposal} onClick={() => save.mutate("reviewed")}><ShieldCheck className="h-4 w-4 mr-2" />Mark Reviewed</Button><Button disabled={save.isPending || busy || !!proposal} onClick={() => { if (window.confirm("Confirm you have clinically reviewed this article and approve it for patient appointments?")) save.mutate("published"); }}><BookOpen className="h-4 w-4 mr-2" />Approve & Publish</Button></div>
       <Button variant="ghost" onClick={onClose}>Cancel</Button>
       {article && <><ArticleHistory article={article} /><ArticleEngagement articleId={article.id} trackOpen={false} /></>}

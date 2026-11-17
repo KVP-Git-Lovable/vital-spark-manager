@@ -2224,14 +2224,64 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback_questions: {
+        Row: {
+          builtin: string | null
+          created_at: string
+          help_text: string
+          id: string
+          is_active: boolean
+          is_required: boolean
+          options: Json
+          question_text: string
+          question_type: string
+          score_at_or_below: number | null
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          builtin?: string | null
+          created_at?: string
+          help_text?: string
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          options?: Json
+          question_text: string
+          question_type?: string
+          score_at_or_below?: number | null
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          builtin?: string | null
+          created_at?: string
+          help_text?: string
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          options?: Json
+          question_text?: string
+          question_type?: string
+          score_at_or_below?: number | null
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       feedback_rca: {
         Row: {
+          answers: Json
           assigned_to: string | null
           created_at: string
           created_by: string | null
           feedback_id: string
           id: string
           nps_score_at_open: number
+          opened_question_id: string | null
           opened_reason: string
           patient_id: string
           resolution_note: string | null
@@ -2239,18 +2289,19 @@ export type Database = {
           resolved_by: string | null
           root_cause: string | null
           root_causes: string[]
-          answers: Json
           service_rating_at_open: number
           status: string
           updated_at: string
         }
         Insert: {
+          answers?: Json
           assigned_to?: string | null
           created_at?: string
           created_by?: string | null
           feedback_id: string
           id?: string
           nps_score_at_open: number
+          opened_question_id?: string | null
           opened_reason: string
           patient_id: string
           resolution_note?: string | null
@@ -2258,18 +2309,19 @@ export type Database = {
           resolved_by?: string | null
           root_cause?: string | null
           root_causes?: string[]
-          answers?: Json
           service_rating_at_open: number
           status?: string
           updated_at?: string
         }
         Update: {
+          answers?: Json
           assigned_to?: string | null
           created_at?: string
           created_by?: string | null
           feedback_id?: string
           id?: string
           nps_score_at_open?: number
+          opened_question_id?: string | null
           opened_reason?: string
           patient_id?: string
           resolution_note?: string | null
@@ -2277,7 +2329,6 @@ export type Database = {
           resolved_by?: string | null
           root_cause?: string | null
           root_causes?: string[]
-          answers?: Json
           service_rating_at_open?: number
           status?: string
           updated_at?: string
@@ -2350,152 +2401,23 @@ export type Database = {
       }
       feedback_settings: {
         Row: {
-          singleton: boolean
           nps_at_or_below: number
           rating_at_or_below: number
+          singleton: boolean
           updated_at: string
           updated_by: string | null
         }
         Insert: {
-          singleton?: boolean
           nps_at_or_below?: number
           rating_at_or_below?: number
+          singleton?: boolean
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
-          singleton?: boolean
           nps_at_or_below?: number
           rating_at_or_below?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
-      rca_root_causes: {
-        Row: {
-          id: string
-          code: string
-          label: string
-          sort_order: number
-          is_active: boolean
-          created_at: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          id?: string
-          code: string
-          label: string
-          sort_order?: number
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          id?: string
-          code?: string
-          label?: string
-          sort_order?: number
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
-      rca_questions: {
-        Row: {
-          id: string
-          cause_id: string
-          question_text: string
-          help_text: string
-          question_type: string
-          options: Json
-          sort_order: number
-          is_active: boolean
-          is_required: boolean
-          ai_generated: boolean
-          created_at: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          id?: string
-          cause_id: string
-          question_text: string
-          help_text?: string
-          question_type?: string
-          options?: Json
-          sort_order?: number
-          is_active?: boolean
-          is_required?: boolean
-          ai_generated?: boolean
-          created_at?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          id?: string
-          cause_id?: string
-          question_text?: string
-          help_text?: string
-          question_type?: string
-          options?: Json
-          sort_order?: number
-          is_active?: boolean
-          is_required?: boolean
-          ai_generated?: boolean
-          created_at?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
-      feedback_questions: {
-        Row: {
-          id: string
-          question_text: string
-          help_text: string
-          question_type: string
-          options: Json
-          sort_order: number
-          is_active: boolean
-          is_required: boolean
-          score_at_or_below: number | null
-          builtin: string | null
-          created_at: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          id?: string
-          question_text: string
-          help_text?: string
-          question_type?: string
-          options?: Json
-          sort_order?: number
-          is_active?: boolean
-          is_required?: boolean
-          score_at_or_below?: number | null
-          builtin?: string | null
-          created_at?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          id?: string
-          question_text?: string
-          help_text?: string
-          question_type?: string
-          options?: Json
-          sort_order?: number
-          is_active?: boolean
-          is_required?: boolean
-          score_at_or_below?: number | null
-          builtin?: string | null
-          created_at?: string
+          singleton?: boolean
           updated_at?: string
           updated_by?: string | null
         }
@@ -4230,6 +4152,7 @@ export type Database = {
       }
       patient_feedback: {
         Row: {
+          answers: Json
           appointment_id: string
           comments: string | null
           created_at: string
@@ -4242,6 +4165,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          answers?: Json
           appointment_id: string
           comments?: string | null
           created_at?: string
@@ -4254,6 +4178,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          answers?: Json
           appointment_id?: string
           comments?: string | null
           created_at?: string
@@ -4395,6 +4320,7 @@ export type Database = {
       }
       patient_feedback_revisions: {
         Row: {
+          answers: Json | null
           appointment_id: string | null
           comments: string | null
           feedback_id: string
@@ -4407,6 +4333,7 @@ export type Database = {
           superseded_by: string | null
         }
         Insert: {
+          answers?: Json | null
           appointment_id?: string | null
           comments?: string | null
           feedback_id: string
@@ -4419,6 +4346,7 @@ export type Database = {
           superseded_by?: string | null
         }
         Update: {
+          answers?: Json | null
           appointment_id?: string | null
           comments?: string | null
           feedback_id?: string
@@ -6385,6 +6313,95 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rca_questions: {
+        Row: {
+          ai_generated: boolean
+          cause_id: string
+          created_at: string
+          help_text: string
+          id: string
+          is_active: boolean
+          is_required: boolean
+          options: Json
+          question_text: string
+          question_type: string
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ai_generated?: boolean
+          cause_id: string
+          created_at?: string
+          help_text?: string
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          options?: Json
+          question_text: string
+          question_type?: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ai_generated?: boolean
+          cause_id?: string
+          created_at?: string
+          help_text?: string
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          options?: Json
+          question_text?: string
+          question_type?: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rca_questions_cause_id_fkey"
+            columns: ["cause_id"]
+            isOneToOne: false
+            referencedRelation: "rca_root_causes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rca_root_causes: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       report_folders: {
         Row: {

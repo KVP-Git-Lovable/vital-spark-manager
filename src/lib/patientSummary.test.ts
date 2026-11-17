@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   EMPTY_FACTS, FACT_CARDS, factCards, hasPatientSummary, patientFacts,
-  patientSummaryIsPublic, PATIENT_SUMMARY_DISCLAIMER,
+  patientSummaryIsPublic, PATIENT_SUMMARY_DISCLAIMER, aiWriteLabel, WRITE_SUMMARY_CTA,
 } from "./patientSummary";
 
 /**
@@ -136,6 +136,32 @@ describe("the publication gate", () => {
   });
 });
 
+describe("the two buttons", () => {
+  it("offers to rewrite only when there is something to replace", () => {
+    expect(aiWriteLabel(false)).toBe("Write with AI");
+    expect(aiWriteLabel(true)).toBe("Rewrite with AI");
+  });
+
+  it("never gives the entry point and the AI button the same name", () => {
+    // Exactly the reported confusion. Both were "Write patient summary", so
+    // pressing one produced the other and the feature looked broken.
+    expect(WRITE_SUMMARY_CTA).not.toBe(aiWriteLabel(false));
+    expect(WRITE_SUMMARY_CTA).not.toBe(aiWriteLabel(true));
+  });
+
+  it("names each button in one place, so they cannot drift back together", () => {
+    const read = (path: string) =>
+      readFileSync(path, "utf8").replace(/^\s*\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    const page = read("src/pages/KnowledgeArticleDetail.tsx");
+    expect(page).toContain("WRITE_SUMMARY_CTA");
+    const section = read("src/components/knowledge/PatientSummaryEditor.tsx");
+    expect(section).toContain("aiWriteLabel(written)");
+    // Neither hard-codes the other's words.
+    expect(section).not.toContain(WRITE_SUMMARY_CTA);
+    expect(page).not.toContain(aiWriteLabel(false));
+  });
+});
+
 describe("the disclaimer", () => {
   it("says it is not personal advice, in words a patient would use", () => {
     expect(PATIENT_SUMMARY_DISCLAIMER).toMatch(/not personal medical advice/i);
@@ -175,12 +201,33 @@ describe("where the gate is applied", () => {
     expect(src).toMatch(/canPrintHandout = !!article && patientSummaryIsPublic\(article\)/);
   });
 
+  it("one click writes it, rather than opening a second identical button", () => {
+    // The reported bug: pressing "Write patient summary" opened an editor whose
+    // patient section had a button of the same name, so it read as a button
+    // that did nothing but show itself.
+    const page = read("src/pages/KnowledgeArticleDetail.tsx");
+    expect(page).toContain('setEditorStart("patient-summary")');
+    const editor = read("src/components/knowledge/ArticleEditor.tsx");
+    expect(editor).toContain('autoStart={start === "patient-summary"}');
+    const section = read("src/components/knowledge/PatientSummaryEditor.tsx");
+    // Latched by a ref, not by an effect's dependencies: this component
+    // re-renders on every keystroke and each call costs credits.
+    expect(section).toContain("started.current = true");
+    expect(section).toMatch(/if \(!autoStart \|\| started\.current \|\| written\) return;/);
+  });
+
+  it("says out loud that it is working", () => {
+    const section = read("src/components/knowledge/PatientSummaryEditor.tsx");
+    expect(section).toContain('data-testid="patient-summary-working"');
+    expect(section).toContain("Writing the patient summary");
+  });
+
   it("the empty tab offers the way to write one", () => {
     const src = read("src/pages/KnowledgeArticleDetail.tsx");
     expect(src).toContain("No patient summary yet");
     expect(src).toContain('data-testid="write-patient-summary"');
     // and it lands on the section rather than the top of a long sheet
-    expect(src).toContain('setEditorFocus("patient")');
+    expect(src).toContain('setEditorStart("patient-summary")');
     const editor = read("src/components/knowledge/ArticleEditor.tsx");
     expect(editor).toMatch(/export const PATIENT_SUMMARY_SECTION_ID/);
     expect(editor).toContain("scrollIntoView");

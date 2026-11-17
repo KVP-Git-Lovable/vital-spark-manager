@@ -11,7 +11,7 @@ import { ArticleEditor } from "@/components/knowledge/ArticleEditor";
 import { ArticleEngagement } from "@/components/knowledge/ArticleEngagement";
 import { ArticleHistory } from "@/components/knowledge/ArticleHistory";
 import { PatientSummary } from "@/components/knowledge/PatientSummary";
-import { hasPatientSummary, patientSummaryIsPublic } from "@/lib/patientSummary";
+import { hasPatientSummary, patientSummaryIsPublic, WRITE_SUMMARY_CTA } from "@/lib/patientSummary";
 import { printPatientHandout } from "@/lib/patientHandout";
 import { reserveTab } from "@/lib/newTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -43,9 +43,10 @@ export default function KnowledgeArticleDetail() {
   const { data: categories = [] } = useKnowledgeCategories();
 
   const [editor, setEditor] = useState<KnowledgeArticle | "new" | null>(null);
-  /** Which part of the editor to land on. The sheet is long enough that
-   *  opening it at the top is the same "where is it?" problem one level in. */
-  const [editorFocus, setEditorFocus] = useState<"patient" | undefined>();
+  /** What the editor should open doing. "Write patient summary" lands on that
+   *  section AND starts writing, rather than showing a second button of the
+   *  same name and waiting - which is what it used to do. */
+  const [editorStart, setEditorStart] = useState<"patient-summary" | undefined>();
   const [cloning, setCloning] = useState<KnowledgeArticle | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -166,8 +167,8 @@ export default function KnowledgeArticleDetail() {
                         and to print as a handout. Written from this article's own text.
                       </p>
                     </div>
-                    <Button size="sm" data-testid="write-patient-summary" onClick={() => { setEditorFocus("patient"); setEditor(article); }}>
-                      <Sparkles className="h-4 w-4 mr-2" />Write patient summary
+                    <Button size="sm" data-testid="write-patient-summary" onClick={() => { setEditorStart("patient-summary"); setEditor(article); }}>
+                      <Sparkles className="h-4 w-4 mr-2" />{WRITE_SUMMARY_CTA}
                     </Button>
                   </div>
                 ) : (
@@ -201,11 +202,11 @@ export default function KnowledgeArticleDetail() {
         <ArticleEditor
           article={editor === "new" ? undefined : editor}
           cloneFrom={cloning || undefined}
-          focus={editorFocus}
+          start={editorStart}
           onClose={() => {
             setEditor(null);
             setCloning(null);
-            setEditorFocus(undefined);
+            setEditorStart(undefined);
             void qc.invalidateQueries({ queryKey: ["knowledge"] });
           }}
         />

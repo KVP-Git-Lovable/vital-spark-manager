@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { draftPatientSummary } from "@/lib/knowledgeAi";
 import {
-  FACT_CARDS, patientFacts, type PatientFacts, type TimelineStep,
+  aiWriteLabel, FACT_CARDS, factCards, patientFacts, type PatientFacts, type TimelineStep,
 } from "@/lib/patientSummary";
 import { PatientSummary } from "./PatientSummary";
 import { PATIENT_SUMMARY_SECTION_ID } from "./ArticleEditor";
@@ -35,12 +35,14 @@ const LIST_LIMIT = 8;
 const TIMELINE_LIMIT = 6;
 
 export function PatientSummaryEditor({
-  summary, facts, source, onChange, onBusyChange,
+  summary, facts, source, autoStart, onChange, onBusyChange,
 }: {
   summary: string;
   facts: unknown;
   /** The clinical fields as they stand in the form - what gets rewritten. */
   source: { title: string; summary: string; clinical_protocol: string; contraindications: string; pre_post_care: string; complications_management: string };
+  /** Opened from "Write patient summary": start writing without a second click. */
+  autoStart?: boolean;
   onChange: (next: { patient_summary: string; patient_facts: PatientFacts }) => void;
   onBusyChange: (busy: boolean) => void;
 }) {
@@ -48,7 +50,9 @@ export function PatientSummaryEditor({
   const [proposal, setProposal] = useState<{ patient_summary: string; patient_facts: PatientFacts; ai_change_summary: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const abort = useRef<AbortController>();
+  const started = useRef(false);
   useEffect(() => () => abort.current?.abort(), []);
+  const written = !!summary.trim() || !!factCards(parsed).length || !!parsed.dos?.length || !!parsed.donts?.length || !!parsed.timeline?.length;
 
   const setFacts = (next: PatientFacts) => onChange({ patient_summary: summary, patient_facts: next });
 
@@ -70,6 +74,27 @@ export function PatientSummaryEditor({
       if ((e as Error).name !== "AbortError") toast.error((e as Error).message);
     } finally { setBusy(false); onBusyChange(false); }
   };
+
+  /**
+   * Opened from the article's "Write patient summary" button: start writing.
+   *
+   * The ref, not the effect's dependency list, is what guarantees one request.
+   * Every call costs the clinic credits, and this component re-renders on every
+   * keystroke in the fields below, so "fire once" has to be a latch rather than
+   * a promise about when effects run.
+   *
+   * Never over existing content: a doctor who already has a summary opened the
+   * editor to change it by hand, not to have it replaced on arrival. They can
+   * still press Rewrite with AI.
+   */
+  useEffect(() => {
+    if (!autoStart || started.current || written) return;
+    started.current = true;
+    void generate();
+    // generate and written are read once, at the latch; adding them would
+    // re-run this on each keystroke, which the latch would then swallow.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
 
   if (proposal) {
     return (
@@ -103,12 +128,28 @@ export function PatientSummaryEditor({
           <p className="text-xs text-muted-foreground">Plain words for the patient, shown on screen and printed as a handout.</p>
         </div>
         <div className="flex gap-2">
+          {/* Never the same words as the button on the article page that opens
+              this - see aiWriteLabel. */}
           <Button variant="outline" size="sm" onClick={generate} disabled={busy}>
-            <Sparkles className="h-4 w-4 mr-2" />Write patient summary
+            <Sparkles className="h-4 w-4 mr-2" />{aiWriteLabel(written)}
           </Button>
           {busy && <Button variant="ghost" size="sm" onClick={() => abort.current?.abort()}><Loader2 className="h-4 w-4 mr-2 animate-spin" />Stop</Button>}
         </div>
       </div>
+
+      {busy && (
+        // Said out loud. The model reasons before it answers, so this is several
+        // seconds in which a silent screen looks like a button that did nothing.
+        <div className="flex items-start gap-3 rounded-md border bg-muted/40 p-4" data-testid="patient-summary-working">
+          <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary motion-reduce:animate-none" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Writing the patient summary…</p>
+            <p className="text-xs text-muted-foreground">
+              Reading this article's clinical text and putting it in plain words. This takes a few seconds.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div>
         <Label htmlFor="patient-summary">In plain words</Label>

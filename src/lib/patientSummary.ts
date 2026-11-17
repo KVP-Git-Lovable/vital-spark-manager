@@ -135,6 +135,22 @@ export function patientSummaryIsPublic(
 }
 
 /**
+ * The two buttons, named here so they can never be given the same name again.
+ *
+ * They were both called "Write patient summary": one on the article page, one
+ * inside the editor it opens. Pressing the first showed the second, which reads
+ * as a button that does nothing but show itself. The first one now starts the
+ * writing, and the second says what it does that the first does not - replace
+ * what is already on the screen.
+ */
+export const WRITE_SUMMARY_CTA = "Write patient summary";
+export const AI_WRITE_LABEL = "Write with AI";
+export const AI_REWRITE_LABEL = "Rewrite with AI";
+export function aiWriteLabel(written: boolean): string {
+  return written ? AI_REWRITE_LABEL : AI_WRITE_LABEL;
+}
+
+/**
  * Said on the screen and printed on the handout.
  *
  * An article is about a treatment, not about the person reading it: it was

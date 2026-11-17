@@ -29,7 +29,11 @@ const blank = { service_id: "", category_id: "", title: "", summary: "", gender:
 /** Where the patient summary section lives, for `focus` to scroll to. */
 export const PATIENT_SUMMARY_SECTION_ID = "patient-summary-section";
 
-export function ArticleEditor({ article, cloneFrom, serviceId, focus, onClose }: { article?: KnowledgeArticle; cloneFrom?: KnowledgeArticle; serviceId?: string; focus?: "patient"; onClose: () => void }) {
+export function ArticleEditor({ article, cloneFrom, serviceId, start, onClose }: { article?: KnowledgeArticle; cloneFrom?: KnowledgeArticle; serviceId?: string;
+  /** Open on a job rather than at the top. "patient-summary" scrolls to that
+   *  section AND starts writing it - named `start`, not `focus`, because it
+   *  spends the clinic's AI credits and a prop called focus must not. */
+  start?: "patient-summary"; onClose: () => void }) {
   const qc = useQueryClient();
   const [form, setForm] = useState({ ...blank, ...(cloneFrom ? cloneArticle(cloneFrom) : {}), ...article, service_id: article?.service_id || cloneFrom?.service_id || serviceId || "" });
   const [resources, setResources] = useState<KnowledgeResource[]>(articleResources(article?.resources || cloneFrom?.resources));
@@ -49,12 +53,12 @@ export function ArticleEditor({ article, cloneFrom, serviceId, focus, onClose }:
    * position until it has rendered inside it.
    */
   useEffect(() => {
-    if (focus !== "patient") return;
+    if (start !== "patient-summary") return;
     const timer = setTimeout(() => {
       document.getElementById(PATIENT_SUMMARY_SECTION_ID)?.scrollIntoView({ block: "start", behavior: "smooth" });
     }, 250);
     return () => clearTimeout(timer);
-  }, [focus]);
+  }, [start]);
   const { data: categories = [] } = useKnowledgeCategories();
   const { data: services = [] } = useKnowledgeServices();
   useEffect(() => {
@@ -104,6 +108,7 @@ export function ArticleEditor({ article, cloneFrom, serviceId, focus, onClose }:
         facts={form.patient_facts}
         source={{ title: form.title, summary: form.summary, clinical_protocol: form.clinical_protocol, contraindications: form.contraindications, pre_post_care: form.pre_post_care, complications_management: form.complications_management }}
         onChange={({ patient_summary, patient_facts }) => setForm((f) => ({ ...f, patient_summary, patient_facts }))}
+        autoStart={start === "patient-summary"}
         onBusyChange={setBusy}
       />}
       {!proposal && <ResourceEditor value={resources} onChange={setResources} group={group} onBusyChange={setBusy} />}

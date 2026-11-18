@@ -9489,6 +9489,38 @@ export type Database = {
       }
       next_invoice_numbers: { Args: { _count?: number }; Returns: string[] }
       normalize_name: { Args: { _text: string }; Returns: string }
+      patient_visit_history: {
+        Args: { p_appointment_id: string }
+        Returns: {
+          appointment_type: string
+          can_open: boolean
+          consultation_reasons: string[]
+          consultation_type: string
+          doctor_name: string
+          end_time: string
+          id: string
+          reason_for_consultation: string
+          service: string
+          source: string
+          staff_first_name: string
+          staff_last_name: string
+          start_time: string
+          status: string
+          therapist_name: string
+          visit_status: string
+        }[]
+      }
+      patient_visit_notes: {
+        Args: { p_appointment_id: string; p_visit_id: string }
+        Returns: {
+          author_first_name: string
+          author_last_name: string
+          content: string
+          created_at: string
+          id: string
+          title: string
+        }[]
+      }
       portal_patients_by_phone: {
         Args: { p_last10: string }
         Returns: {

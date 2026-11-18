@@ -48,6 +48,8 @@ interface PortalFeedbackRow {
   created_at: string;
   updated_at: string | null;
   last_edited_by: string | null;
+  /** Answers to the clinic's own questions; seeds the edit form. */
+  answers?: unknown;
   appointment: {
     id: string;
     start_time: string | null;

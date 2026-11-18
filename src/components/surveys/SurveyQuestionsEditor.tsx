@@ -1,4 +1,8 @@
 import { useRef, useState } from "react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { streamImage } from "@/lib/knowledgeImageStream";
 import { ArrowDown, ArrowUp, ImagePlus, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -75,6 +79,10 @@ export function SurveyQuestionsEditor({
   // Which question the finished frame belongs to: `drawing` goes back to null
   // the moment the stream ends, and the preview has to stay where it was.
   const lastDrawn = useRef<number | null>(null);
+  // The whole-survey run: how far it has got, so the clinic can watch it and
+  // stop it. Counted in pictures, because that is what it spends.
+  const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
+  const [confirmBulk, setConfirmBulk] = useState(false);
 
   const update = (i: number, patch: Partial<EditableQuestion>) =>
     onChange(questions.map((q, n) => (n === i ? { ...q, ...patch } : q)));
@@ -118,6 +126,69 @@ export function SurveyQuestionsEditor({
     });
     if (error) throw error;
     return supabase.storage.from(SURVEY_IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+  };
+
+  /** One picture, from the question to a stored URL. No preview, no Keep. */
+  const generateOne = async (q: EditableQuestion, signal: AbortSignal, accessToken: string) => {
+    let finished = "";
+    await streamImage(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/survey-question-image`,
+      { question_id: q.id },
+      (url, complete) => { if (complete) finished = url; },
+      signal,
+      { Authorization: `Bearer ${accessToken}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+    );
+    if (!finished) throw new Error("No picture came back.");
+    const blob = await (await fetch(finished)).blob();
+    return store(new File([blob], "survey-question.png", { type: "image/png" }));
+  };
+
+  /**
+   * A picture for every question that has none.
+   *
+   * Never touches a question that already has one - a picture the clinic
+   * chose is not something a bulk button may overwrite. Stops at the first
+   * failure rather than pressing on: the usual reason is the AI running out
+   * of credit, and every call after it would fail the same way.
+   */
+  const generateMissing = async () => {
+    const targets = questions
+      .map((q, i) => ({ q, i }))
+      .filter(({ q }) => q.id && q.question_text.trim() && !q.image_url && q.is_active !== false);
+    if (!targets.length) { toast.info("Every question already has a picture."); return; }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { toast.error("Please sign in."); return; }
+
+    abort.current = new AbortController();
+    setBulk({ done: 0, total: targets.length });
+    let next = [...questions];
+    let made = 0;
+    try {
+      for (const { q, i } of targets) {
+        if (abort.current.signal.aborted) break;
+        setDrawing(i);
+        const url = await generateOne(q, abort.current.signal, session.access_token);
+        next = next.map((x, n) => (n === i ? { ...x, image_url: url } : x));
+        onChange(next);
+        made += 1;
+        setBulk({ done: made, total: targets.length });
+      }
+      if (made > 0) {
+        toast.success(`${made} picture${made === 1 ? "" : "s"} made. Save the survey to keep them.`);
+      }
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") {
+        if (made > 0) toast.success(`Stopped. ${made} kept so far - save the survey to keep them.`);
+      } else {
+        toast.error(
+          `${(e as Error).message || "Could not make a picture."}${made > 0 ? ` ${made} made before it stopped.` : ""}`,
+        );
+      }
+    } finally {
+      setDrawing(null);
+      setBulk(null);
+    }
   };
 
   const generate = async (i: number) => {
@@ -201,6 +272,56 @@ export function SurveyQuestionsEditor({
           </SelectContent>
         </Select>
       </div>
+
+      {/* A picture for every question that has none. Each one spends an AI
+          credit, so it says how many before it starts. */}
+      {(() => {
+        const missing = questions.filter(
+          (q) => q.id && q.question_text.trim() && !q.image_url && q.is_active !== false,
+        ).length;
+        return (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
+            <div className="flex-1 min-w-[14rem]">
+              <p className="text-sm font-medium">Pictures</p>
+              <p className="text-xs text-muted-foreground">
+                {bulk
+                  ? `Making picture ${bulk.done + 1} of ${bulk.total}…`
+                  : missing === 0
+                    ? "Every question has a picture."
+                    : `${missing} question${missing === 1 ? " has" : "s have"} no picture of their own.`}
+              </p>
+            </div>
+            {bulk ? (
+              <Button size="sm" variant="ghost" onClick={() => abort.current?.abort()}>Stop</Button>
+            ) : (
+              <Button
+                size="sm" variant="outline"
+                disabled={disabled || missing === 0 || drawing !== null}
+                onClick={() => setConfirmBulk(true)}
+              >
+                <Sparkles className="h-3.5 w-3.5 mr-1" /> Generate the missing ones
+              </Button>
+            )}
+          </div>
+        );
+      })()}
+
+      <AlertDialog open={confirmBulk} onOpenChange={setConfirmBulk}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Make a picture for every question without one?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {questions.filter((q) => q.id && q.question_text.trim() && !q.image_url && q.is_active !== false).length}
+              {" pictures, one per question, each made from that question's wording. Each one spends an AI credit. "}
+              A question that already has a picture is left alone, and you can stop part way.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Not now</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void generateMissing()}>Make them</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {questions.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-6">

@@ -164,12 +164,71 @@ describe("the editor", () => {
     const keep = source.slice(source.indexOf("const keepFrame"), source.indexOf("const upload ="));
     expect(keep).toContain("store(");
     expect(keep).toContain("image_url: url");
-    const generate = source.slice(source.indexOf("const generate"), source.indexOf("const keepFrame"));
-    expect(generate).not.toContain("store(");
-    expect(generate).not.toContain("image_url");
+    // The single-question path specifically - generateOne, used by the bulk
+    // run, does store straight away because there is no Keep to wait for.
+    const single = source.slice(
+      source.indexOf("const generate = async (i: number)"),
+      source.indexOf("const keepFrame"),
+    );
+    expect(single).not.toContain("store(");
+    expect(single).not.toContain("image_url");
   });
 
   it("can be stopped part way", () => {
     expect(code()).toContain("abort.current?.abort()");
+  });
+});
+
+describe("making every missing picture at once", () => {
+  const code = () =>
+    readFileSync("src/components/surveys/SurveyQuestionsEditor.tsx", "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+
+  /** The one filter that decides what the bulk run touches. */
+  const targetRule = () => {
+    const source = code();
+    const start = source.indexOf("const generateMissing");
+    return source.slice(start, source.indexOf("const { data: { session } }", start));
+  };
+
+  it("never overwrites a picture the clinic already chose", () => {
+    // A bulk button that replaced an uploaded picture would be a trap.
+    expect(targetRule()).toContain("!q.image_url");
+  });
+
+  it("skips a question with no wording, and a retired one", () => {
+    const rule = targetRule();
+    expect(rule).toContain("q.question_text.trim()");
+    expect(rule).toContain("q.is_active !== false");
+  });
+
+  it("skips a question that has never been saved", () => {
+    // The function looks the question up by id; a draft has none.
+    expect(targetRule()).toContain("q.id &&");
+  });
+
+  it("stops at the first failure rather than spending the rest", () => {
+    // Running out of credit is the usual reason, and every call after it
+    // would fail the same way.
+    const source = code();
+    const loop = source.slice(source.indexOf("for (const { q, i } of targets)"), source.indexOf("} catch (e)"));
+    expect(loop).not.toMatch(/try\s*\{/);
+    expect(source).toContain("made > 0");
+  });
+
+  it("can be stopped part way, keeping what it already made", () => {
+    const source = code();
+    expect(source).toContain("if (abort.current.signal.aborted) break;");
+    expect(source).toMatch(/Stopped\. \$\{made\}/);
+  });
+
+  it("says how many it will make before it starts", () => {
+    // Each one spends a credit, so the number comes before the button does
+    // anything.
+    const source = code();
+    expect(source).toContain("AlertDialog");
+    expect(source).toContain("Each one spends an AI credit.");
+    expect(source).toContain("setConfirmBulk(true)");
   });
 });

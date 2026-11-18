@@ -7967,8 +7967,14 @@ export type Database = {
       survey_questions: {
         Row: {
           created_at: string
+          help_text: string
           id: string
           ideal_answer: Json | null
+          image_url: string | null
+          is_active: boolean
+          is_required: boolean
+          max_choices: number | null
+          max_length: number | null
           options: Json | null
           question_text: string
           question_type: string
@@ -7977,8 +7983,14 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          help_text?: string
           id?: string
           ideal_answer?: Json | null
+          image_url?: string | null
+          is_active?: boolean
+          is_required?: boolean
+          max_choices?: number | null
+          max_length?: number | null
           options?: Json | null
           question_text: string
           question_type?: string
@@ -7987,8 +7999,14 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          help_text?: string
           id?: string
           ideal_answer?: Json | null
+          image_url?: string | null
+          is_active?: boolean
+          is_required?: boolean
+          max_choices?: number | null
+          max_length?: number | null
           options?: Json | null
           question_text?: string
           question_type?: string
@@ -8206,6 +8224,7 @@ export type Database = {
           is_active: boolean | null
           name: string
           problem_area_id: string | null
+          questions_per_page: number
           service_id: string | null
           updated_at: string
           updated_by: string | null
@@ -8221,6 +8240,7 @@ export type Database = {
           is_active?: boolean | null
           name: string
           problem_area_id?: string | null
+          questions_per_page?: number
           service_id?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -8236,6 +8256,7 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           problem_area_id?: string | null
+          questions_per_page?: number
           service_id?: string | null
           updated_at?: string
           updated_by?: string | null

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PortalSurveyConfig } from "@/components/surveys/PortalSurveyConfig";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -128,6 +129,11 @@ export default function PortalModules() {
           </p>
         </div>
       </Card>
+
+      {/* The switches above decide whether patients see surveys at all; this
+          is what those surveys ask. Here because the clinic asked for survey
+          configuration under Patient Portal, beside the switch that shows it. */}
+      <PortalSurveyConfig />
     </div>
   );
 }

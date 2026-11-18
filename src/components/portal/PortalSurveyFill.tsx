@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { askableQuestions, configuredQuestions, pageBlockers, pageLabel, questionImage, questionPages, questionsPerPage, type ConfiguredQuestion } from "@/lib/surveyQuestionConfig";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -80,14 +81,30 @@ export default function PortalSurveyFill({ patientId, templateId, assignmentId, 
     },
   });
 
-  const { data: questions = [], isLoading } = useQuery({
+  const { data: configured = [], isLoading } = useQuery({
     queryKey: ["portal-survey-questions", templateId],
     queryFn: async () => {
       const { data, error } = await supabase.from("survey_questions").select("*").eq("template_id", templateId).order("sort_order");
       if (error) throw error;
-      return (data ?? []) as SurveyQuestionLike[];
+      return configuredQuestions(data ?? []);
     },
   });
+
+  // How many to put on one page. One is what the portal has always done, and
+  // is what a template nobody has configured still says.
+  const { data: perPage = 1 } = useQuery({
+    queryKey: ["portal-survey-layout", templateId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("survey_templates").select("questions_per_page").eq("id", templateId).maybeSingle();
+      if (error) throw error;
+      return questionsPerPage(data?.questions_per_page);
+    },
+  });
+
+  // A retired question is not asked. Answers already given to it stay.
+  const questions = useMemo(() => askableQuestions(configured) as SurveyQuestionLike[], [configured]);
+  const pages = useMemo(() => questionPages(configured, perPage), [configured, perPage]);
 
   // ─── Auto-advance ───────────────────────────────
   // One ref slot, so two timers can never be live at once and a double
@@ -111,14 +128,19 @@ export default function PortalSurveyFill({ patientId, templateId, assignmentId, 
   useEffect(() => { setIndex(0); setAnswers({}); }, [templateId]);
 
   const total = questions.length;
-  const isReview = total > 0 && index >= total;
-  const current: SurveyQuestionLike | undefined = questions[index];
+  // `index` walks the PAGES now. At one question per page - which is what
+  // every template says until somebody changes it - a page is a question and
+  // this is exactly the old behaviour.
+  const pageCount = pages.length;
+  const isReview = pageCount > 0 && index >= pageCount;
+  const currentPage: ConfiguredQuestion[] = pages[index] ?? [];
+  const onePerPage = currentPage.length === 1;
 
   const go = useCallback((next: number) => {
     clearAdvance();
     setDirection(next >= index ? 1 : -1);
-    setIndex(Math.max(0, Math.min(next, total)));
-  }, [clearAdvance, index, total]);
+    setIndex(Math.max(0, Math.min(next, pageCount)));
+  }, [clearAdvance, index, pageCount]);
 
   const armAdvance = useCallback((questionId: string) => {
     clearAdvance();
@@ -130,12 +152,13 @@ export default function PortalSurveyFill({ patientId, templateId, assignmentId, 
       setIndex((i) => {
         // The patient may have pressed Back or Next during the pause. Moving
         // on is only right if they are still standing on the question they
-        // answered.
-        if (questions[i]?.id !== questionId) return i;
-        return Math.min(i + 1, questions.length);
+        // answered - and only ever when that page holds just that question.
+        const page = pages[i];
+        if (!page || page.length !== 1 || page[0].id !== questionId) return i;
+        return Math.min(i + 1, pages.length);
       });
     }, AUTO_ADVANCE_MS);
-  }, [clearAdvance, questions]);
+  }, [clearAdvance, pages]);
 
   const updateAnswer = (qid: string, value: AnswerValue) => {
     setAnswers((p) => ({ ...p, [qid]: value }));
@@ -167,9 +190,11 @@ export default function PortalSurveyFill({ patientId, templateId, assignmentId, 
 
   // ─── Submit ─────────────────────────────────────
   const handleSubmit = async () => {
-    const unanswered = questions.filter((q) => !isAnswered(q, answers[q.id]));
+    // Only the ones the clinic marked as needed. Every question used to be
+    // required because there was no way to say otherwise.
+    const unanswered = pageBlockers(configured.filter((q) => q.is_active), answers);
     if (unanswered.length > 0) {
-      toast.error(`Please answer all questions (${unanswered.length} remaining)`);
+      toast.error(`Please answer all required questions (${unanswered.length} remaining)`);
       go(questions.findIndex((q) => !isAnswered(q, answers[q.id])));
       return;
     }
@@ -265,11 +290,11 @@ export default function PortalSurveyFill({ patientId, templateId, assignmentId, 
         {total > 0 && (
           <div className="space-y-1.5">
             <Progress
-              value={isReview ? 100 : (index / total) * 100}
+              value={isReview ? 100 : (index / Math.max(pageCount, 1)) * 100}
               className="h-1.5 [&>div]:motion-reduce:transition-none"
             />
             <p className="text-xs text-muted-foreground">
-              {isReview ? `Review — ${answered} of ${total} answered` : `Question ${index + 1} of ${total}`}
+              {isReview ? `Review — ${answered} of ${total} answered` : pageLabel(pages, index, total)}
             </p>
           </div>
         )}
@@ -329,7 +354,7 @@ export default function PortalSurveyFill({ patientId, templateId, assignmentId, 
               </div>
             </Card>
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 min-h-11" onClick={() => go(total - 1)} disabled={submitting}>
+              <Button variant="outline" className="flex-1 min-h-11" onClick={() => go(pageCount - 1)} disabled={submitting}>
                 Back
               </Button>
               <Button className="flex-1 min-h-11 gap-2" onClick={handleSubmit} disabled={submitting}>
@@ -339,25 +364,48 @@ export default function PortalSurveyFill({ patientId, templateId, assignmentId, 
             </div>
           </motion.div>
         ) : (
-          current && (
-            <motion.div key={current.id} {...slide} transition={{ duration: 0.2 }} className="space-y-3">
-              <Card className="p-4 space-y-4">
-                <Label className="text-base font-medium leading-snug block">{current.question_text}</Label>
+          currentPage.length > 0 && (
+            <motion.div key={currentPage[0].id} {...slide} transition={{ duration: 0.2 }} className="space-y-3">
+              {currentPage.map((q) => (
+                <Card key={q.id} className="p-4 space-y-4">
+                  <div className="space-y-1">
+                    <Label className="text-base font-medium leading-snug block">
+                      {q.question_text}
+                      {!q.is_required && (
+                        <span className="text-xs font-normal text-muted-foreground"> · optional</span>
+                      )}
+                    </Label>
+                    {q.help_text && <p className="text-xs text-muted-foreground">{q.help_text}</p>}
+                  </div>
 
-                <SurveyQuestionImage name={illustrationFor(current.question_text, current.question_type)} />
+                  {/* The clinic's own picture when they chose one. Otherwise
+                      the illustration picked from the wording, exactly as
+                      before, so a question nobody configured is unchanged. */}
+                  {questionImage(q) ? (
+                    <img
+                      src={questionImage(q)!}
+                      alt=""
+                      aria-hidden="true"
+                      loading="lazy"
+                      className="h-32 sm:h-36 w-full rounded-xl object-cover"
+                    />
+                  ) : (
+                    <SurveyQuestionImage name={illustrationFor(q.question_text, q.question_type)} />
+                  )}
 
-                <QuestionControl
-                  question={current}
-                  value={answers[current.id]}
-                  pending={pendingId === current.id}
-                  elaborating={elaborating === current.id}
-                  onAnswer={(v) => updateAnswer(current.id, v)}
-                  onPick={() => autoAdvances(current) && armAdvance(current.id)}
-                  onElaborate={() =>
-                    elaborateAnswer(current.id, String(current.question_text ?? ""), String(answers[current.id] ?? ""))
-                  }
-                />
-              </Card>
+                  <QuestionControl
+                    question={q as SurveyQuestionLike}
+                    value={answers[q.id]}
+                    pending={pendingId === q.id}
+                    elaborating={elaborating === q.id}
+                    onAnswer={(v) => updateAnswer(q.id, v)}
+                    onPick={() => onePerPage && autoAdvances(q as SurveyQuestionLike) && armAdvance(q.id)}
+                    onElaborate={() =>
+                      elaborateAnswer(q.id, String(q.question_text ?? ""), String(answers[q.id] ?? ""))
+                    }
+                  />
+                </Card>
+              ))}
 
               <div className="flex gap-2">
                 <Button
@@ -371,9 +419,9 @@ export default function PortalSurveyFill({ patientId, templateId, assignmentId, 
                 <Button
                   className="flex-1 min-h-11"
                   onClick={() => go(index + 1)}
-                  disabled={!isAnswered(current, answers[current.id]) || submitting}
+                  disabled={pageBlockers(currentPage, answers).length > 0 || submitting}
                 >
-                  {index === total - 1 ? "Review" : "Next"}
+                  {index === pageCount - 1 ? "Review" : "Next"}
                 </Button>
               </div>
             </motion.div>

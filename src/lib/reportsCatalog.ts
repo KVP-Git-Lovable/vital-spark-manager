@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { RcaDecisionCell } from "@/components/feedback/RcaDecisionCell";
-import { decisionSummary } from "@/lib/feedbackCaseDecision";
+import { decisionSummary, matchesDecisionFilter, RCA_FILTER_OPTIONS } from "@/lib/feedbackCaseDecision";
 import { rcaStatusLabel } from "@/lib/feedbackRca";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/supabasePaginate";
@@ -1177,6 +1177,20 @@ const allFeedbacks: ReportConfig = {
     + "A score below the clinic's limits opens a case; the last column is where you say whether it is worth working.",
   // Reached from Feedback in the menu, so the catalogue does not need a tile.
   hidden: true,
+  /**
+   * The existing five, plus one for the decision. A new array, so the report
+   * on /reports keeps exactly the filters it has today.
+   */
+  filters: [
+    ...feedbackReport.filters,
+    {
+      key: "rca",
+      label: "RCA",
+      type: "select",
+      options: RCA_FILTER_OPTIONS,
+      matches: matchesDecisionFilter,
+    },
+  ],
   columns: [
     ...feedbackReport.columns,
     {

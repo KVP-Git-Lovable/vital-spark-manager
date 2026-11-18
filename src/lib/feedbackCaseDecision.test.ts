@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  caseDecision, decisionRowClass, decisionSummary, needsDecision,
-  RCA_NOT_REQUIRED_STATUS, RCA_REQUIRED_STATUS,
+  caseDecision, decisionRowClass, decisionSummary, matchesDecisionFilter, needsDecision,
+  RCA_FILTER_OPTIONS, RCA_NOT_REQUIRED_STATUS, RCA_REQUIRED_STATUS,
 } from "./feedbackCaseDecision";
 import { RCA_STATUSES, rcaStatusLabel } from "./feedbackRca";
+import { getReport } from "./reportsCatalog";
 
 /**
  * Which feedback still needs somebody to decide, and what the row looks like.
@@ -140,6 +141,72 @@ describe("the cell", () => {
   });
 });
 
+describe("filtering down to what needs doing", () => {
+  const open = { rca_case_id: "c1", rca_status: "open" };
+  const working = { rca_case_id: "c2", rca_status: "in_progress" };
+  const resolved = { rca_case_id: "c3", rca_status: "resolved" };
+  const waved = { rca_case_id: "c4", rca_status: "no_action" };
+  const fine = { rca_case_id: null, rca_status: null };
+  const all = [open, working, resolved, waved, fine];
+  const kept = (value: string) => all.filter((r) => matchesDecisionFilter(r, value));
+
+  it("shows only the rows still waiting, which is what was asked for", () => {
+    expect(kept("needed")).toEqual([open]);
+  });
+
+  it("never counts a decided case as still needing one", () => {
+    for (const row of [working, resolved, waved, fine]) {
+      expect(matchesDecisionFilter(row, "needed")).toBe(false);
+    }
+  });
+
+  it("picks out one status at a time", () => {
+    expect(kept("in_progress")).toEqual([working]);
+    expect(kept("resolved")).toEqual([resolved]);
+    expect(kept("no_action")).toEqual([waved]);
+  });
+
+  it("shows every case, or none of them", () => {
+    expect(kept("any")).toEqual([open, working, resolved, waved]);
+    expect(kept("none")).toEqual([fine]);
+    // Complements: between them they account for every row exactly once.
+    expect(kept("any").length + kept("none").length).toBe(all.length);
+  });
+
+  it("matches nothing on a value it does not know", () => {
+    // Matching everything would be worse than useless: the clinic would read
+    // a full page of feedback as though all of it needed reviewing.
+    expect(kept("made_up")).toEqual([]);
+    expect(kept("")).toEqual([]);
+  });
+
+  it("does not mistake a stray field for a case", () => {
+    // A status with no case id is not a case, whatever it says.
+    expect(matchesDecisionFilter({ rca_status: "open" }, "needed")).toBe(false);
+    // The status branch too: a row carrying a status but no case is not a case.
+    expect(matchesDecisionFilter({ rca_status: "in_progress" }, "in_progress")).toBe(false);
+    expect(matchesDecisionFilter({ rca_case_id: null, rca_status: "no_action" }, "no_action")).toBe(false);
+    expect(matchesDecisionFilter({ rca_case_id: 7, rca_status: "open" }, "needed")).toBe(false);
+    expect(matchesDecisionFilter("a string row", "any")).toBe(false);
+  });
+
+  it("offers the decision first, and names the statuses as the clinic does", () => {
+    expect(RCA_FILTER_OPTIONS[0]).toEqual({ value: "needed", label: "Needs a decision" });
+    // Derived from RCA_STATUSES, so a reworded label follows automatically.
+    for (const status of RCA_STATUSES.filter((x) => x.value !== "open")) {
+      expect(RCA_FILTER_OPTIONS).toContainEqual({ value: status.value, label: status.label });
+    }
+    // "open" is offered as "Needs a decision", never twice.
+    expect(RCA_FILTER_OPTIONS.filter((o) => o.value === "open")).toEqual([]);
+  });
+
+  it("offers nothing the matcher cannot answer", () => {
+    for (const option of RCA_FILTER_OPTIONS) {
+      expect(all.some((r) => matchesDecisionFilter(r, option.value))).toBe(true);
+    }
+  });
+});
+
 describe("the report", () => {
   const catalog = () => readFileSync("src/lib/reportsCatalog.ts", "utf8");
 
@@ -163,6 +230,22 @@ describe("the report", () => {
     // Two tiles for the same thing is how a clinic ends up with two numbers.
     expect(catalog()).toContain("hidden: true,");
     expect(readFileSync("src/pages/Reports.tsx", "utf8")).toContain("&& !r.hidden");
+  });
+
+  it("appends the RCA filter rather than replacing the existing ones", () => {
+    const source = catalog();
+    expect(source).toContain("...feedbackReport.filters,");
+    expect(source).toContain("matches: matchesDecisionFilter,");
+  });
+
+  it("leaves the original report's own filters alone", () => {
+    // Not a source guard: the two definitions are read and compared, so a
+    // spread accidentally turned into a push would fail here.
+    const original = getReport("patient_feedback")!;
+    const derived = getReport("all_feedbacks")!;
+    expect(original.filters.map((f) => f.key)).not.toContain("rca");
+    expect(derived.filters.map((f) => f.key)).toEqual([...original.filters.map((f) => f.key), "rca"]);
+    expect(derived.columns.map((c) => c.key)).toEqual([...original.columns.map((c) => c.key), "rca_decision"]);
   });
 
   it("still offers the original report untouched", () => {

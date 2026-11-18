@@ -1,4 +1,4 @@
-import type { RcaStatus } from "@/lib/feedbackRca";
+import { RCA_STATUSES, type RcaStatus } from "@/lib/feedbackRca";
 
 /**
  * Whether a piece of feedback still needs somebody to say what happens next.
@@ -70,6 +70,47 @@ export const decisionRowClass = (row: unknown): string =>
   needsDecision(asCaseRow(row))
     ? "bg-destructive/10 hover:bg-destructive/15 border-l-4 border-l-destructive"
     : "";
+
+/**
+ * The RCA filter on All Feedbacks.
+ *
+ * The clinic's reason for wanting it: 29 of 1,224 rows are waiting on a
+ * decision, and scrolling past the other 1,195 to find them is the whole
+ * problem. "Needs a decision" leads, because that is the one they asked for.
+ *
+ * The three status entries take their wording from RCA_STATUSES rather than
+ * repeating it, so a label reworded on the Root Cause Analysis screen is
+ * reworded here too.
+ */
+export const RCA_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: "needed", label: "Needs a decision" },
+  { value: "any", label: "Any case" },
+  ...RCA_STATUSES.filter((s) => s.value !== "open").map((s) => ({ value: s.value, label: s.label })),
+  { value: "none", label: "No case" },
+];
+
+/**
+ * Whether a row belongs in the chosen filter.
+ *
+ * Takes `unknown` and narrows, like decisionRowClass: the report table hands
+ * this whatever that report's fetcher built.
+ *
+ * An unrecognised value matches NOTHING. Matching everything would be worse
+ * than useless here - the clinic would read a full page of feedback as though
+ * all of it needed reviewing.
+ */
+export function matchesDecisionFilter(row: unknown, value: string): boolean {
+  const r = asCaseRow(row);
+  const state = caseDecision(r);
+  switch (value) {
+    case "needed": return state === "undecided";
+    case "any": return state !== "none";
+    case "none": return state === "none";
+    default:
+      // One of the statuses, and only on a row that actually has a case.
+      return state !== "none" && r.rca_status === value;
+  }
+}
 
 /** What the RCA column reads when there is nothing to choose. */
 export function decisionSummary(

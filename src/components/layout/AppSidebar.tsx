@@ -42,6 +42,7 @@ import {
   BookOpen,
   CalendarCheck,
   AlertTriangle,
+  MessageSquareHeart,
   MoreHorizontal,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -119,8 +120,14 @@ const othersItems = [
   { title: "Expenses", url: "/expenses", icon: Wallet, moduleKey: "expenses" },
 ];
 
-/** One entry today. It sits below WhatsApp Delivery, where the clinic looks for it. */
+/**
+ * It sits below WhatsApp Delivery, where the clinic looks for it.
+ *
+ * All Feedbacks comes first: it is where every score is read, and the cases
+ * below it are what some of those scores turn into.
+ */
 const feedbackItems = [
+  { title: "All Feedbacks", url: "/all-feedbacks", icon: MessageSquareHeart, moduleKey: "feedback_rca" },
   { title: "Root Cause Analysis", url: "/feedback-rca", icon: AlertTriangle, moduleKey: "feedback_rca" },
 ];
 

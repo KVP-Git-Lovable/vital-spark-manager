@@ -114,11 +114,21 @@ describe("Others", () => {
 });
 
 describe("Feedback", () => {
-  it("holds Root Cause Analysis", () => {
+  it("holds All Feedbacks and Root Cause Analysis, in that order", () => {
     sidebarAt("/feedback-rca");
     const group = screen.getByText("Feedback").closest("li")!;
+    expect(within(group).getByText("All Feedbacks")).toBeInTheDocument();
     expect(within(group).getByText("Root Cause Analysis")).toBeInTheDocument();
-    expect(group.querySelectorAll("a[href]")).toHaveLength(1);
+    // All Feedbacks first: it is where every score is read, and the cases
+    // below it are what some of those scores turn into.
+    const links = Array.from(group.querySelectorAll("a[href]"));
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/all-feedbacks", "/feedback-rca"]);
+  });
+
+  it("opens the group when All Feedbacks is the page", () => {
+    sidebarAt("/all-feedbacks");
+    const group = screen.getByText("Feedback").closest("li")!;
+    expect(within(group).getByText("All Feedbacks")).toBeInTheDocument();
   });
 
   it("sits directly below WhatsApp Delivery", () => {

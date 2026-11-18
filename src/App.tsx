@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/toaster";
+import { ALL_FEEDBACKS_KEY } from "@/lib/reportsCatalog";
 import { staffAccess } from "@/lib/staffAccess";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -303,6 +304,7 @@ const App = () => (
                     <Route path="/appointments/:id" element={<ProtectedRoute moduleKey="appointments"><AppointmentDetail /></ProtectedRoute>} />
                     <Route path="/services" element={<ProtectedRoute moduleKey="services"><Services /></ProtectedRoute>} />
                     <Route path="/knowledge" element={<ProtectedRoute moduleKey="services"><KnowledgeArticles /></ProtectedRoute>} />
+            <Route path="/all-feedbacks" element={<ProtectedRoute moduleKey="feedback_rca"><ReportView reportKey={ALL_FEEDBACKS_KEY} /></ProtectedRoute>} />
             <Route path="/feedback-rca" element={<ProtectedRoute moduleKey="feedback_rca"><FeedbackRca /></ProtectedRoute>} />
             <Route path="/feedback-rca/:id" element={<ProtectedRoute moduleKey="feedback_rca"><FeedbackRcaDetail /></ProtectedRoute>} />
                     <Route path="/knowledge/:id" element={<ProtectedRoute moduleKey="services"><KnowledgeArticleDetail /></ProtectedRoute>} />

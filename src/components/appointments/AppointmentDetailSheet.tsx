@@ -66,6 +66,8 @@ import { CameraCapture } from "@/components/shared/CameraCapture";
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
+import { PastVisitSheet } from "@/components/appointments/PastVisitSheet";
+import { canOpenVisit, showsBilledState, visitRows, visitStaffName, type VisitRow } from "@/lib/patientVisitHistory";
 import { ScanProcedureDialog } from "@/components/procedures/ScanProcedureDialog";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 
@@ -509,6 +511,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [procFormOpen, setProcFormOpen] = useState(false);
   const [scanProcOpen, setScanProcOpen] = useState(false);
   const [selectedProcId, setSelectedProcId] = useState<string | null>(null);
+  const [pastVisit, setPastVisit] = useState<VisitRow | null>(null);
   // An index into the photos as the tab lays them out, not the photo itself:
   // that is what lets the viewer step to the next one. Mirrors PatientDetail.
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
@@ -716,17 +719,28 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const hasCompletedProcedure = procedures.some((p: any) => p.status === "Completed");
 
   // All previous appointments for this patient (excluding the current one)
+  /**
+   * The patient's earlier visits.
+   *
+   * Through patient_visit_history() rather than the table, because
+   * 20261113210000 scopes `appointments` to the visits a therapist or nurse
+   * was put on: reading the table directly returned only the visit they are
+   * already looking at, and this tab read "No other appointments for this
+   * patient." for every patient they ever opened.
+   *
+   * The function answers the narrower question - you can open this visit, so
+   * what else has this patient had - and excludes the current appointment
+   * itself, so no filtering is needed here.
+   */
   const { data: previousAppointments = [] } = useQuery({
     queryKey: ["patient-previous-appointments", appointment?.patient_id, appointmentId],
-    enabled: !!appointment?.patient_id,
+    enabled: !!appointment?.patient_id && !!appointmentId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("*, staff:staff!appointments_staff_id_fkey(first_name, last_name)")
-        .eq("patient_id", appointment!.patient_id!)
-        .order("start_time", { ascending: false });
+      const { data, error } = await supabase.rpc("patient_visit_history", {
+        p_appointment_id: appointmentId!,
+      });
       if (error) throw error;
-      return (data || []).filter((a: any) => a.id !== appointmentId);
+      return visitRows(data);
     },
   });
 
@@ -1805,11 +1819,17 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         <p className="text-sm text-muted-foreground text-center py-8">No other appointments for this patient.</p>
                       ) : (
                         <div className="space-y-2">
-                          {(previousAppointments as any[]).map((apt: any) => (
+                          {previousAppointments.map((apt) => (
                             <div
                               key={apt.id}
                               className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => { navigate(`/appointments/${apt.id}`); }}
+                              // A visit this user may not open loads nothing in the
+                              // full sheet - maybeSingle() returns null for a row the
+                              // policy hides - so it opens the read-only one instead.
+                              onClick={() => {
+                                if (canOpenVisit(apt)) navigate(`/appointments/${apt.id}`);
+                                else setPastVisit(apt);
+                              }}
                             >
                               {/* What was actually done leads the card. The
                                   service is "Consultation" on most of these and
@@ -1818,13 +1838,13 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                                   service when there is no text. */}
                               <div className="flex items-start justify-between gap-2">
                                 <p className="font-medium text-sm">{investigationText(apt, apt.service || "Consultation")}</p>
-                                <Badge variant="outline" className={`text-xs shrink-0 ${showsAsBilled(apt.status, billsByAppointment.has(apt.id)) ? BILLED_BADGE_CLASSES : STATUS_BADGE_CLASSES[apt.status] || ""}`}>{appointmentStatusLabel(apt.status, billsByAppointment.has(apt.id))}</Badge>
+                                <Badge variant="outline" className={`text-xs shrink-0 ${showsAsBilled(apt.status || "", showsBilledState({ canSeeBilling, billed: billsByAppointment.has(apt.id) })) ? BILLED_BADGE_CLASSES : STATUS_BADGE_CLASSES[apt.status || ""] || ""}`}>{appointmentStatusLabel(apt.status || "", showsBilledState({ canSeeBilling, billed: billsByAppointment.has(apt.id) }))}</Badge>
                               </div>
                               <p className="text-xs mt-1">
                                 <span className="font-medium text-foreground">{displayDate(apt.start_time)}</span>
                                 <span className="text-muted-foreground">
                                   {` · ${format(new Date(apt.start_time), "h:mm a")}`}
-                                  {apt.staff && ` · ${withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`)}`}
+                                  {visitStaffName(apt) && ` · ${withDrPrefix(visitStaffName(apt))}`}
                                 </span>
                               </p>
                             </div>
@@ -2369,6 +2389,11 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       )}
 
       <ProcedureDetailSheet procedureId={selectedProcId} onClose={() => setSelectedProcId(null)} />
+      <PastVisitSheet
+        visit={pastVisit}
+        anchorAppointmentId={appointmentId || ""}
+        onClose={() => setPastVisit(null)}
+      />
 
       {surveyFillOpen && appointment?.patient_id && selectedSurveyTemplateId && (
         <SurveyFill

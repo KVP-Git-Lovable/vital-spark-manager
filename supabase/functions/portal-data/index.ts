@@ -77,6 +77,7 @@ interface FeedbackRow {
   created_at: string;
   updated_at: string | null;
   last_edited_by: string | null;
+  answers: unknown;
 }
 
 /** The visit a piece of feedback is about. */
@@ -370,7 +371,7 @@ Deno.serve(async (req) => {
       case "feedback": {
         if (!(await feedbackEnabled())) return json({ error: "Feedback is not enabled", code: "disabled" }, 403);
         const list = (await rows(
-          `patient_feedback?select=id,appointment_id,nps_score,service_rating,comments,created_at,updated_at,last_edited_by&patient_id=eq.${pid}&order=created_at.desc`,
+          `patient_feedback?select=id,appointment_id,nps_score,service_rating,comments,answers,created_at,updated_at,last_edited_by&patient_id=eq.${pid}&order=created_at.desc`,
         )) as FeedbackRow[];
         // The visit each one is about, fetched separately rather than embedded:
         // patient_feedback.appointment_id is reachable through more than one
@@ -485,6 +486,17 @@ Deno.serve(async (req) => {
               answers[key] = trimmed || null;
             }
           }
+        }
+
+        // Merged into what is stored, never a replacement: an answer to a
+        // question that has since been switched off is not in this payload,
+        // and dropping it would quietly erase it from the clinic's record.
+        if (answers !== undefined) {
+          const current = await rows(`patient_feedback?select=answers&id=eq.${id}&patient_id=eq.${pid}`);
+          if (!current.length) return json({ error: "Feedback not found" }, 404);
+          const stored = current[0].answers;
+          const base = stored && typeof stored === "object" && !Array.isArray(stored) ? stored as Record<string, unknown> : {};
+          answers = { ...base, ...answers };
         }
 
         const res = await sb(`patient_feedback?id=eq.${id}&patient_id=eq.${pid}`, {

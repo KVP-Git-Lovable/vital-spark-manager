@@ -198,6 +198,15 @@ describe("the three built-ins keep their own columns", () => {
     expect(seeded.r).toBe(3);
   });
 
+  it("keeps an extra question's answer when the patient only changes their rating", () => {
+    const questions = [...builtins(), q({ id: "ontime", question_type: "yes_no", is_required: true, sort_order: 3 })];
+    const seeded = answersFromRow(questions, { nps_score: 8, service_rating: 4, comments: null, answers: { n: 8, r: 4, ontime: true } });
+    expect(validateAnswers(questions, seeded)).toEqual([]);
+    const saved = feedbackRowFrom(questions, { ...seeded, r: 2 });
+    expect(saved.service_rating).toBe(2);
+    expect(saved.answers.ontime).toBe(true);
+  });
+
   it("survives a row with nothing in it", () => {
     expect(answersFromRow(builtins(), null)).toEqual({});
     expect(answersFromRow([], { nps_score: 1 })).toEqual({});
@@ -255,6 +264,10 @@ describe("what the database and the edge function promise", () => {
     expect(fn).toContain('case "feedback_questions"');
     // and an update with no answers leaves them alone rather than wiping them
     expect(fn).toContain("answers === undefined ? {} : { answers }");
+    // the edit form is seeded from the stored answers, so the list must carry them
+    expect(fn).toMatch(/patient_feedback\?select=[^`]*\banswers\b[^`]*&patient_id=eq/);
+    // and an edit merges into what is stored instead of replacing it
+    expect(fn).toContain("answers = { ...base, ...answers }");
   });
 
   it("adds a question the database will accept, switched off", () => {

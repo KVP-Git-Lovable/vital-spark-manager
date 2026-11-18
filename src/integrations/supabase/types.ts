@@ -9470,38 +9470,6 @@ export type Database = {
       is_knowledge_staff: { Args: never; Returns: boolean }
       is_my_patient: { Args: { _patient_id: string }; Returns: boolean }
       is_pure_consultation: { Args: { _text: string }; Returns: boolean }
-      patient_visit_history: {
-        Args: { p_appointment_id: string }
-        Returns: {
-          appointment_type: string | null
-          can_open: boolean
-          consultation_reasons: string[] | null
-          consultation_type: string | null
-          doctor_name: string | null
-          end_time: string | null
-          id: string
-          reason_for_consultation: string | null
-          service: string | null
-          source: string | null
-          staff_first_name: string | null
-          staff_last_name: string | null
-          start_time: string
-          status: string | null
-          therapist_name: string | null
-          visit_status: string | null
-        }[]
-      }
-      patient_visit_notes: {
-        Args: { p_appointment_id: string; p_visit_id: string }
-        Returns: {
-          author_first_name: string | null
-          author_last_name: string | null
-          content: string | null
-          created_at: string
-          id: string
-          title: string | null
-        }[]
-      }
       knowledge_article_stats: {
         Args: { _ids: string[] }
         Returns: {

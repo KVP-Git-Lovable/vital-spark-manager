@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ImagePlus, Loader2, Plus, Trash2, X } from "lucide-react";
+import { streamImage } from "@/lib/knowledgeImageStream";
+import { ArrowDown, ArrowUp, ImagePlus, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,15 @@ export function SurveyQuestionsEditor({
 }) {
   const [uploading, setUploading] = useState<number | null>(null);
   const fileInputs = useRef<Record<number, HTMLInputElement | null>>({});
+  // One generation at a time, with the frame it has reached. Nothing is
+  // stored until the clinic presses Keep.
+  const [drawing, setDrawing] = useState<number | null>(null);
+  const [frame, setFrame] = useState("");
+  const [frameDone, setFrameDone] = useState(false);
+  const abort = useRef<AbortController | null>(null);
+  // Which question the finished frame belongs to: `drawing` goes back to null
+  // the moment the stream ends, and the preview has to stay where it was.
+  const lastDrawn = useRef<number | null>(null);
 
   const update = (i: number, patch: Partial<EditableQuestion>) =>
     onChange(questions.map((q, n) => (n === i ? { ...q, ...patch } : q)));
@@ -99,20 +109,70 @@ export function SurveyQuestionsEditor({
     onChange(questions.filter((_, n) => n !== i).map((x, n) => ({ ...x, sort_order: n })));
   };
 
+  /** Put the picture in the bucket and hand back its public URL. */
+  const store = async (file: File): Promise<string> => {
+    const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from(SURVEY_IMAGE_BUCKET).upload(path, file, {
+      cacheControl: "3600", upsert: false,
+    });
+    if (error) throw error;
+    return supabase.storage.from(SURVEY_IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+  };
+
+  const generate = async (i: number) => {
+    const q = questions[i];
+    if (!q.question_text.trim()) { toast.error("Give the question its wording first."); return; }
+    if (!q.id) { toast.error("Save the survey once, then a picture can be made for this question."); return; }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { toast.error("Please sign in."); return; }
+
+    abort.current = new AbortController();
+    lastDrawn.current = i;
+    setDrawing(i); setFrame(""); setFrameDone(false);
+    try {
+      await streamImage(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/survey-question-image`,
+        { question_id: q.id },
+        (url, complete) => { setFrame(url); setFrameDone(complete); },
+        abort.current.signal,
+        {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+      );
+    } catch (e) {
+      setFrame(""); setFrameDone(false);
+      if (!(e instanceof Error && e.name === "AbortError")) {
+        toast.error(e instanceof Error ? e.message : "Could not make a picture.");
+      }
+    } finally {
+      setDrawing(null);
+    }
+  };
+
+  const keepFrame = async (i: number) => {
+    setUploading(i);
+    try {
+      const blob = await (await fetch(frame)).blob();
+      const url = await store(new File([blob], "survey-question.png", { type: "image/png" }));
+      update(i, { image_url: url });
+      setFrame(""); setFrameDone(false);
+      toast.success("Picture kept. Save the survey to keep it for good.");
+    } catch (e) {
+      toast.error((e as Error).message || "The picture could not be kept.");
+    } finally {
+      setUploading(null);
+    }
+  };
+
   const upload = async (i: number, file: File) => {
     if (!file.type.startsWith("image/")) { toast.error("That is not an image."); return; }
     if (file.size > MAX_IMAGE_BYTES) { toast.error("Images must be under 5 MB."); return; }
     setUploading(i);
     try {
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from(SURVEY_IMAGE_BUCKET).upload(path, file, {
-        cacheControl: "3600", upsert: false,
-      });
-      if (error) throw error;
-      const { data } = supabase.storage.from(SURVEY_IMAGE_BUCKET).getPublicUrl(path);
-      update(i, { image_url: data.publicUrl });
-      toast.success("Picture added. Save the template to keep it.");
+      update(i, { image_url: await store(file) });
+      toast.success("Picture added. Save the survey to keep it.");
     } catch (e) {
       toast.error((e as Error).message || "Upload failed.");
     } finally {
@@ -281,13 +341,33 @@ export function SurveyQuestionsEditor({
                       if (file) void upload(i, file);
                     }}
                   />
-                  <Button size="sm" variant="outline" disabled={disabled || uploading === i}
+                  <Button size="sm" variant="outline" disabled={disabled || uploading === i || drawing !== null}
                           onClick={() => fileInputs.current[i]?.click()}>
                     {uploading === i
                       ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Uploading…</>
                       : <><ImagePlus className="h-3.5 w-3.5 mr-1" /> {q.image_url ? "Replace" : "Upload"}</>}
                   </Button>
-                  {q.image_url && (
+
+                  {/* Make one that matches the question, rather than hunting
+                      for a photo. Each press is one generation. */}
+                  <Button
+                    size="sm" variant="outline"
+                    disabled={disabled || drawing !== null || uploading === i || !q.question_text.trim()}
+                    title={q.question_text.trim() ? "Make a picture from this question" : "Write the question first"}
+                    onClick={() => void generate(i)}
+                  >
+                    {drawing === i
+                      ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Drawing…</>
+                      : <><Sparkles className="h-3.5 w-3.5 mr-1" /> {q.image_url ? "Regenerate" : "Generate"}</>}
+                  </Button>
+
+                  {drawing === i && (
+                    <Button size="sm" variant="ghost" onClick={() => abort.current?.abort()}>
+                      Stop
+                    </Button>
+                  )}
+
+                  {q.image_url && drawing !== i && (
                     <Button size="sm" variant="ghost" disabled={disabled}
                             onClick={() => update(i, { image_url: null })}>
                       <X className="h-3.5 w-3.5 mr-1" /> Remove
@@ -296,6 +376,32 @@ export function SurveyQuestionsEditor({
                 </div>
               </div>
             </div>
+
+            {(drawing === i || (frame && frameDone && lastDrawn.current === i)) && frame && (
+              <div className="space-y-2 border-t pt-3">
+                <img
+                  src={frame}
+                  alt="A picture being made for this question"
+                  className={`h-40 w-full rounded-lg object-cover ${frameDone ? "" : "blur-md"}`}
+                />
+                {frameDone && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-muted-foreground flex-1 min-w-[12rem]">
+                      Made by AI from the question's wording. Look at it before keeping it.
+                    </p>
+                    <Button size="sm" disabled={uploading === i} onClick={() => void keepFrame(i)}>
+                      {uploading === i
+                        ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Keeping…</>
+                        : "Keep"}
+                    </Button>
+                    <Button size="sm" variant="ghost" disabled={uploading === i}
+                            onClick={() => { setFrame(""); setFrameDone(false); }}>
+                      Discard
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       })}

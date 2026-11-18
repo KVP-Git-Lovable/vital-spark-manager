@@ -117,6 +117,31 @@ export function SurveyQuestionsEditor({
     onChange(questions.filter((_, n) => n !== i).map((x, n) => ({ ...x, sort_order: n })));
   };
 
+  /**
+   * Write the picture onto the question itself, now.
+   *
+   * It used to live in local state until somebody pressed Save, and four
+   * generated pictures were lost that way - made, paid for, and gone on the
+   * next reload. A picture that costs a credit must not depend on a button
+   * being remembered.
+   *
+   * A question with no id has no row to write to yet; that one is still
+   * carried to the database by Save, which is the only thing that can create
+   * it.
+   */
+  const persist = async (q: EditableQuestion, imageUrl: string | null) => {
+    if (!q.id) return;
+    const { data, error } = await supabase
+      .from("survey_questions")
+      .update({ image_url: imageUrl })
+      .eq("id", q.id)
+      .select("id");
+    if (error) throw error;
+    // A refusal by the row-level rule matches no rows rather than erroring,
+    // and the clinic would be told it saved when nothing moved.
+    if (!data?.length) throw new Error("Nothing was saved. This needs permission to edit surveys.");
+  };
+
   /** Put the picture in the bucket and hand back its public URL. */
   const store = async (file: File): Promise<string> => {
     const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -169,17 +194,18 @@ export function SurveyQuestionsEditor({
         if (abort.current.signal.aborted) break;
         setDrawing(i);
         const url = await generateOne(q, abort.current.signal, session.access_token);
+        await persist(q, url);
         next = next.map((x, n) => (n === i ? { ...x, image_url: url } : x));
         onChange(next);
         made += 1;
         setBulk({ done: made, total: targets.length });
       }
       if (made > 0) {
-        toast.success(`${made} picture${made === 1 ? "" : "s"} made. Save the survey to keep them.`);
+        toast.success(`${made} picture${made === 1 ? "" : "s"} made and saved.`);
       }
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
-        if (made > 0) toast.success(`Stopped. ${made} kept so far - save the survey to keep them.`);
+        if (made > 0) toast.success(`Stopped. The ${made} already made ${made === 1 ? "is" : "are"} saved.`);
       } else {
         toast.error(
           `${(e as Error).message || "Could not make a picture."}${made > 0 ? ` ${made} made before it stopped.` : ""}`,
@@ -227,9 +253,10 @@ export function SurveyQuestionsEditor({
     try {
       const blob = await (await fetch(frame)).blob();
       const url = await store(new File([blob], "survey-question.png", { type: "image/png" }));
+      await persist(questions[i], url);
       update(i, { image_url: url });
       setFrame(""); setFrameDone(false);
-      toast.success("Picture kept. Save the survey to keep it for good.");
+      toast.success(questions[i].id ? "Picture saved." : "Picture kept. Save the survey to keep it.");
     } catch (e) {
       toast.error((e as Error).message || "The picture could not be kept.");
     } finally {
@@ -242,8 +269,10 @@ export function SurveyQuestionsEditor({
     if (file.size > MAX_IMAGE_BYTES) { toast.error("Images must be under 5 MB."); return; }
     setUploading(i);
     try {
-      update(i, { image_url: await store(file) });
-      toast.success("Picture added. Save the survey to keep it.");
+      const url = await store(file);
+      await persist(questions[i], url);
+      update(i, { image_url: url });
+      toast.success(questions[i].id ? "Picture saved." : "Picture added. Save the survey to keep it.");
     } catch (e) {
       toast.error((e as Error).message || "Upload failed.");
     } finally {
@@ -490,7 +519,14 @@ export function SurveyQuestionsEditor({
 
                   {q.image_url && drawing !== i && (
                     <Button size="sm" variant="ghost" disabled={disabled}
-                            onClick={() => update(i, { image_url: null })}>
+                            onClick={async () => {
+                              try {
+                                await persist(q, null);
+                                update(i, { image_url: null });
+                              } catch (e) {
+                                toast.error((e as Error).message || "The picture could not be removed.");
+                              }
+                            }}>
                       <X className="h-3.5 w-3.5 mr-1" /> Remove
                     </Button>
                   )}

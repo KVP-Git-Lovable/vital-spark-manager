@@ -233,7 +233,11 @@ function CauseRow({
           </div>
           <Label className="flex items-center gap-2 text-sm font-normal pb-2">
             <Switch checked={cause.is_active} disabled={!canEdit} onCheckedChange={(is_active) => patchCause({ is_active })} />
-            Offered
+            {/* The word is the state, not the control: "Offered" read the same
+                whichever way the switch sat, so the colour was the only tell.
+                The width is held so the row does not jump between the six
+                letters and the eight each time it is pressed. */}
+            <span className="min-w-[4.5rem]">{cause.is_active ? "Active" : "Inactive"}</span>
           </Label>
         </div>
 

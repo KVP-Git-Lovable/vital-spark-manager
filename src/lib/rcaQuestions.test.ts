@@ -185,6 +185,39 @@ describe("when the AI helper cannot be reached", () => {
   });
 });
 
+describe("the cause switch says which way it is set", () => {
+  // "Offered" read the same whether the cause was on or off, so the colour of
+  // the switch was the only thing telling the clinic the state. Comments are
+  // stripped: a source assertion that passes on the file's own prose has
+  // caught this project out before.
+  const editorCode = () =>
+    readFileSync("src/components/feedback/RcaCausesEditor.tsx", "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+
+  it("reads Active when it is on and Inactive when it is off", () => {
+    expect(editorCode()).toContain('cause.is_active ? "Active" : "Inactive"');
+  });
+
+  it("no longer says Offered", () => {
+    expect(editorCode()).not.toContain("Offered");
+  });
+
+  it("still writes the same field it always did", () => {
+    // The label changed; what the switch does did not.
+    expect(editorCode()).toContain(
+      "onCheckedChange={(is_active) => patchCause({ is_active })}",
+    );
+  });
+
+  it("leaves the question row's own switches alone", () => {
+    // The clinic asked for the cause toggle only.
+    const source = editorCode();
+    expect(source).toContain("Asked");
+    expect(source).toContain("Must be answered");
+  });
+});
+
 describe("what the database promises", () => {
   const read = (p: string) => readFileSync(p, "utf8").replace(/^\s*--.*$/gm, "").replace(/^\s*\/\/.*$/gm, "");
   const MIGRATION = "supabase/migrations/20261117120000_what_we_ask_about_a_cause.sql";

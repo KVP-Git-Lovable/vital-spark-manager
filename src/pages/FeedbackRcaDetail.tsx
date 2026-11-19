@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, Gauge, Send, Star, User } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Gauge, Send, Star } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useRcaCase, useRcaComments } from "@/hooks/useFeedbackRca";
@@ -18,6 +18,7 @@ import {
 import { answerMap, type AnswerMap } from "@/lib/feedbackQuestions";
 import { npsCategory, ratingLabel } from "@/lib/feedbackScores";
 import {
+  NO_PATIENT_ID,
   RCA_CLOSED_STATUSES,
   RCA_OPENED_REASONS,
   RCA_ROOT_CAUSES,
@@ -129,6 +130,13 @@ export default function FeedbackRcaDetail() {
 
   const closed = RCA_CLOSED_STATUSES.includes(rca.status as RcaStatus);
   const fb = rca.feedback;
+
+  const patientName = fb?.patient_name || "Unnamed patient";
+  // NO_PATIENT_ID is the zero uuid the Feedback tab writes when a visit has
+  // no patient; it would link to a patient page that does not exist.
+  const patientHref =
+    rca.patient_id && rca.patient_id !== NO_PATIENT_ID ? `/patients/${rca.patient_id}` : null;
+
   // The patient may have edited their score since the case opened.
   const drifted = fb && (fb.nps_score !== rca.nps_score_at_open || fb.service_rating !== rca.service_rating_at_open);
 
@@ -140,9 +148,18 @@ export default function FeedbackRcaDetail() {
 
       <div className="max-w-4xl space-y-5">
         <header className="space-y-3">
+          {/* The name is the way to the patient's record. The warning icon
+              stays outside it: it marks the case, not the person, and an
+              icon that navigates to somebody's record reads wrong. */}
           <h1 className="text-2xl font-semibold flex items-start gap-2">
             <AlertTriangle className="h-5 w-5 mt-1 shrink-0 text-destructive" />
-            {fb?.patient_name || "Unnamed patient"}
+            {patientHref ? (
+              <Link to={patientHref} className="hover:underline underline-offset-4">
+                {patientName}
+              </Link>
+            ) : (
+              patientName
+            )}
           </h1>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className={rcaStatusClass[rca.status] ?? ""}>
@@ -159,11 +176,6 @@ export default function FeedbackRcaDetail() {
               {format(new Date(rca.created_at), "d MMM yyyy")}
             </span>
           </div>
-          {rca.patient_id && (
-            <Link to={`/patients/${rca.patient_id}`} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
-              <User className="h-3.5 w-3.5" /> Open patient record
-            </Link>
-          )}
         </header>
 
         <section className="rounded-lg border p-4 space-y-2">

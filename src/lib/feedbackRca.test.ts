@@ -250,3 +250,45 @@ describe("the patient roll-up", () => {
     expect(hook).toContain("appointment:appointment_id(");
   });
 });
+
+describe("the patient's name opens their record", () => {
+  const page = () => code(read("src/pages/FeedbackRcaDetail.tsx"));
+
+  it("puts the name inside the link", () => {
+    const source = page();
+    expect(source).toContain("<Link to={patientHref}");
+    // Inside the heading, not beside it.
+    const heading = source.slice(source.indexOf("<h1"), source.indexOf("</h1>"));
+    expect(heading).toContain("patientHref ? (");
+    expect(heading).toContain("{patientName}");
+  });
+
+  it("drops the separate button that used to do this", () => {
+    expect(page()).not.toContain("Open patient record");
+  });
+
+  it("leaves the warning icon outside the link", () => {
+    // It marks the case, not the person; an icon that navigates to somebody's
+    // record reads wrong.
+    const source = page();
+    const heading = source.slice(source.indexOf("<h1"), source.indexOf("</h1>"));
+    expect(heading.indexOf("AlertTriangle")).toBeLessThan(heading.indexOf("<Link"));
+  });
+
+  it("does not link a case with no patient", () => {
+    const source = page();
+    expect(source).toContain("rca.patient_id && rca.patient_id !== NO_PATIENT_ID");
+    expect(source).toMatch(/: null;/);
+  });
+
+  it("knows the zero uuid is not a patient", () => {
+    // The Feedback tab writes it when a visit has no patient, and it would
+    // link to a patient page that does not exist.
+    expect(page()).toContain("NO_PATIENT_ID");
+    expect(code(read("src/lib/feedbackRca.ts"))).toContain("00000000-0000-0000-0000-000000000000");
+  });
+
+  it("still reads as a heading rather than a link", () => {
+    expect(page()).toContain('className="hover:underline underline-offset-4"');
+  });
+});

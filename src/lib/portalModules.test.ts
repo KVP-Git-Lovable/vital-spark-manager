@@ -140,11 +140,11 @@ describe("the screens use the registry", () => {
     expect(pharma).toContain("feedback_enabled");
   });
 
-  it("is reachable from Admin and the sidebar", () => {
-    expect(readFileSync("src/pages/Admin.tsx", "utf8")).toContain("/admin/portal-modules");
-    expect(readFileSync("src/components/layout/AppSidebar.tsx", "utf8")).toContain(
-      "/admin/portal-modules",
-    );
+  it("is reachable from Admin Home, and routed", () => {
+    // Admin Home and the sidebar both read src/lib/adminSections.ts now; the
+    // sidebar's Admin group is one link to /admin and lists nothing itself.
+    expect(readFileSync("src/lib/adminSections.ts", "utf8")).toContain("/admin/portal-modules");
+    expect(readFileSync("src/pages/Admin.tsx", "utf8")).toContain("adminSections");
     expect(readFileSync("src/App.tsx", "utf8")).toContain('path="/admin/portal-modules"');
   });
 });
@@ -158,12 +158,11 @@ describe("the page is called what it holds", () => {
 
   const PAGE = "src/pages/admin/PortalModules.tsx";
 
-  it("says Patient Portal Configuration in all three places", () => {
+  it("says Patient Portal Configuration where the name is kept", () => {
+    // Two places now, not three: the sidebar stopped naming admin pages when
+    // its Admin group became one link, and the name lives on ADMIN_LINKS.
     expect(src(PAGE)).toContain(">Patient Portal Configuration</h1>");
-    expect(src("src/components/layout/AppSidebar.tsx")).toContain(
-      '{ title: "Patient Portal Configuration", url: "/admin/portal-modules"',
-    );
-    expect(src("src/pages/Admin.tsx")).toContain('title: "Patient Portal Configuration",');
+    expect(src("src/lib/adminSections.ts")).toContain('title: "Patient Portal Configuration",');
   });
 
   it("offers the two halves as tabs, modules first", () => {

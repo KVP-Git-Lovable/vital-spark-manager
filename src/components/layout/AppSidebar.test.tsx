@@ -45,9 +45,15 @@ const EVERY_LINK_BEFORE = [
   "/staff", "/attendance", "/leave",
   "/survey-templates", "/all-surveys",
   "/services", "/knowledge", "/vendors", "/category-master", "/tax-master", "/problem-areas",
-  "/validation-rules", "/custom-fields", "/duplicate-management", "/admin/history-tracking",
-  "/admin/knowledge-categories", "/admin/currency", "/admin/portal-modules",
-  "/admin/attendance", "/user-management", "/admin/trash",
+  // The Admin group was eleven sub-items and is now one link. Each of those
+  // urls was removed from this list by hand, after checking it is on
+  // ADMIN_LINKS in src/lib/adminSections.ts - which adminSections.test.ts
+  // asserts url by url, so they are still reachable, through Admin Home
+  // rather than through here. Removed: /validation-rules, /custom-fields,
+  // /duplicate-management, /admin/history-tracking,
+  // /admin/knowledge-categories, /admin/currency, /admin/portal-modules,
+  // /admin/feedback, /admin/attendance, /user-management, /admin/trash.
+  "/admin",
   "/trash", "/settings",
 ];
 
@@ -295,7 +301,7 @@ describe("what a therapist sees", () => {
 });
 
 describe("what the gating must never do", () => {
-  it("leaves an admin every one of the 47 links", () => {
+  it("leaves an admin every one of the 38 links", () => {
     // Admins are handled before the map is consulted, and their map is empty.
     auth = { isAdmin: true, permissions: {} };
     const seen = new Set<string>();
@@ -320,5 +326,40 @@ describe("what the gating must never do", () => {
     auth = { isAdmin: false, permissions: { dashboard: { can_view: true }, patients: { can_view: false } } };
     const { hrefs } = sidebarAt("/");
     expect(hrefs()).not.toContain("/patients");
+  });
+});
+
+/**
+ * The Admin group after it became one link.
+ *
+ * Its eleven sub-items moved onto Admin Home. /admin is itself guarded by
+ * "settings", so the collapse is only safe for somebody holding that key -
+ * and these two tests are the pair that proves it both ways.
+ */
+describe("the Admin group", () => {
+  it("is a single link for somebody who can open Admin Home", () => {
+    auth = { isAdmin: true, permissions: {} };
+    const { hrefs } = sidebarAt("/admin");
+    const admin = hrefs().filter((h) => h === "/admin" || h.startsWith("/admin/"));
+    expect(admin).toEqual(["/admin"]);
+    // The sub-items are gone from the menu, not hidden behind a closed group:
+    // rendering AT /admin is what used to open them.
+    expect(hrefs()).not.toContain("/user-management");
+    expect(hrefs()).not.toContain("/admin/trash");
+  });
+
+  it("still offers Attendance directly to somebody who cannot open Admin Home", () => {
+    // attendance_admin without settings: /admin/attendance opens for them and
+    // /admin does not, so collapsing the group blindly would strand them.
+    auth = { isAdmin: false, permissions: { dashboard: { can_view: true }, attendance_admin: { can_view: true } } };
+    const { hrefs } = sidebarAt("/admin/attendance");
+    expect(hrefs()).toContain("/admin/attendance");
+    expect(hrefs()).not.toContain("/admin");
+  });
+
+  it("disappears for somebody with neither", () => {
+    auth = { isAdmin: false, permissions: { dashboard: { can_view: true }, settings: { can_view: false } } };
+    const { hrefs } = sidebarAt("/admin");
+    expect(hrefs().filter((h) => h.startsWith("/admin"))).toEqual([]);
   });
 });

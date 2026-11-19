@@ -81,16 +81,28 @@ describe("the menu and the registry agree", () => {
     }
   });
 
-  it("gives the Admin group and Trash the keys their routes use", () => {
+  it("gives Trash and My Attendance the keys their routes use", () => {
     const src = SIDEBAR();
-    // The whole Admin group used to hang off "settings" with no keys on its
-    // items, so it sat on a doctor's menu leading nowhere.
-    expect(src).toContain("const filteredAdmin = adminSubItems.filter");
-    expect(src).toContain("const showAdmin = filteredAdmin.length > 0;");
-    expect(src).toMatch(/url: "\/user-management"[^\n]*adminOnly: true/);
-    expect(src).toMatch(/url: "\/admin\/attendance"[^\n]*moduleKey: "attendance_admin"/);
     expect(src).toMatch(/url: "\/trash"[^\n]*moduleKey: "trash"/);
     expect(src).toMatch(/url: "\/attendance"[^\n]*moduleKey: "attendance"/);
+  });
+
+  it("gives the admin pages theirs, now that they live in their own list", () => {
+    // The whole Admin group used to hang off "settings" with no keys on its
+    // items, so it sat on a doctor's menu leading nowhere. The group is one
+    // link now and the entries moved to src/lib/adminSections.ts, which keeps
+    // a key per page; adminSections.test.ts checks each against its route.
+    const admin = readFileSync("src/lib/adminSections.ts", "utf8");
+    expect(admin).toMatch(/url: "\/user-management",[\s\S]{0,160}adminOnly: true/);
+    expect(admin).toMatch(/url: "\/admin\/attendance",[\s\S]{0,160}moduleKey: "attendance_admin"/);
+    expect(SIDEBAR()).not.toContain("adminSubItems");
+  });
+
+  it("labels every admin page with a key the registry knows too", () => {
+    const admin = readFileSync("src/lib/adminSections.ts", "utf8");
+    for (const k of new Set([...admin.matchAll(/moduleKey: "([a-z_]+)"/g)].map((m) => m[1]))) {
+      expect(MODULE_KEYS, `Admin Home offers "${k}", which no role can be granted`).toContain(k);
+    }
   });
 });
 

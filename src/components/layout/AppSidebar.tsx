@@ -24,15 +24,9 @@ import {
   FileText,
   ListChecks,
   ShieldCheck,
-  SlidersHorizontal,
   Megaphone,
-  CopyCheck,
   Trash2,
-  History,
-  Coins,
-  Smartphone,
   MessageCircle,
-  MessageSquareWarning,
   Phone,
   Mail,
   Target,
@@ -73,6 +67,7 @@ import {
 } from "@/components/ui/collapsible";
 import { useAuth } from "@/hooks/useAuth";
 import { canViewModule } from "@/lib/staffAccess";
+import { ADMIN_LINKS, visibleAdminLinks } from "@/lib/adminSections";
 
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, moduleKey: "dashboard" },
@@ -178,27 +173,24 @@ const settingsItems = [
 ];
 
 /**
- * Every entry carries the key its ROUTE is guarded by in App.tsx, so the menu
- * offers exactly what opens. They had no keys at all before, which is why the
- * whole group sat on a doctor's menu leading to Access Denied on every item.
+ * The Admin group is one link now.
  *
- * User Management is the one exception: its route is AdminRoute, which asks
- * isAdmin and never looks at a permission row, so the menu has to ask the same
- * question rather than a key nobody can be granted.
+ * It used to list eleven sub-items, which filled the sidebar and pushed Trash
+ * and Settings off the bottom. They live on Admin Home instead, drawn from
+ * ADMIN_LINKS in src/lib/adminSections.ts - one list, so the menu and that
+ * page can no longer drift apart the way they had.
+ *
+ * ── Why it is not simply a link ──
+ *
+ * /admin is guarded by moduleKey="settings", so Admin Home can only serve
+ * somebody who holds that key. A role given attendance_admin WITHOUT settings
+ * can open /admin/attendance but not /admin, and collapsing the group blindly
+ * would strand them. So: with settings, one Admin link; without it, the old
+ * collapsible carrying only what they can still reach, and no Admin Home
+ * entry, because that page would refuse them. Nobody is in that state on the
+ * live clinic today - only the Admin role holds either key - but one tick in
+ * User Management creates it.
  */
-const adminSubItems = [
-  { title: "Validation Rules", url: "/validation-rules", icon: ShieldCheck, moduleKey: "settings" },
-  { title: "Custom Fields", url: "/custom-fields", icon: SlidersHorizontal, moduleKey: "settings" },
-  { title: "Duplicate Management", url: "/duplicate-management", icon: CopyCheck, moduleKey: "settings" },
-  { title: "History Tracking", url: "/admin/history-tracking", icon: History, moduleKey: "settings" },
-  { title: "Knowledge Categories", url: "/admin/knowledge-categories", icon: BookOpen, moduleKey: "settings" },
-  { title: "Currency & Billing", url: "/admin/currency", icon: Coins, moduleKey: "settings" },
-  { title: "Patient Portal Configuration", url: "/admin/portal-modules", icon: Smartphone, moduleKey: "settings" },
-  { title: "Feedback", url: "/admin/feedback", icon: MessageSquareWarning, moduleKey: "settings" },
-  { title: "Attendance", url: "/admin/attendance", icon: CalendarCheck, moduleKey: "attendance_admin" },
-  { title: "User Management", url: "/user-management", icon: Users, adminOnly: true },
-  { title: "Trash Policy & Audit", url: "/admin/trash", icon: Trash2, moduleKey: "settings" },
-] as { title: string; url: string; icon: typeof Users; moduleKey?: string; adminOnly?: boolean }[];
 
 export function AppSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar();
@@ -238,9 +230,14 @@ export function AppSidebar() {
   const feedbackPaths = feedbackItems.map((i) => i.url);
 
   const employeesPaths = ["/staff", "/leave", "/attendance"];
-  const adminPaths = ["/admin", ...adminSubItems.map((i) => i.url)];
-  const filteredAdmin = adminSubItems.filter((i) => (i.adminOnly ? isAdmin : canView(i.moduleKey)));
-  const showAdmin = filteredAdmin.length > 0;
+  // Admin Home itself. With it, the group is one link; without it, whatever
+  // admin pages they can still reach have to be offered directly.
+  const canOpenAdminHome = canView("settings");
+  const adminLeftovers = canOpenAdminHome
+    ? []
+    : visibleAdminLinks({ isAdmin, permissions });
+  const adminPaths = ["/admin", ...ADMIN_LINKS.map((i) => i.url)];
+  const showAdmin = canOpenAdminHome || adminLeftovers.length > 0;
   // Flattened, not mapped: the Surveys entry has no url of its own, and the two
   // pages beneath it still have to open Master Data when one of them is the page
   // you are on.
@@ -577,51 +574,64 @@ export function AppSidebar() {
             <SidebarGroupLabel>Admin</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <Collapsible
-                  defaultOpen={adminPaths.some((p) => currentPath.startsWith(p))}
-                  className="group/collapsible"
-                >
+                {canOpenAdminHome ? (
+                  /* One entry. Everything that used to hang under it is on
+                     Admin Home, which is what this opens. */
                   <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton
-                        tooltip="Admin"
-                        isActive={adminPaths.some((p) => currentPath.startsWith(p))}
-                      >
+                    <SidebarMenuButton
+                      asChild
+                      tooltip="Admin"
+                      isActive={adminPaths.some((p) => currentPath.startsWith(p))}
+                    >
+                      <Link to="/admin">
                         <ShieldCheck className="mr-2 h-4 w-4" />
                         {!collapsed && <span>Admin</span>}
-                        {!collapsed && (
-                          <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                        )}
-                      </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={currentPath === "/admin"}>
-                            <Link to="/admin">
-                              <Settings className="mr-2 h-3.5 w-3.5" />
-                              <span>Admin Home</span>
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        {filteredAdmin.map((item) => (
-                          <SidebarMenuSubItem key={item.title}>
-                            <SidebarMenuSubButton asChild isActive={isActive(item.url)}>
-                              <Link to={item.url}>
-                                <item.icon className="mr-2 h-3.5 w-3.5" />
-                                <span>{item.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
+                      </Link>
+                    </SidebarMenuButton>
                   </SidebarMenuItem>
-                </Collapsible>
+                ) : (
+                  /* They cannot open Admin Home, so the pages they CAN open
+                     are offered directly rather than behind a door that
+                     refuses them. */
+                  <Collapsible
+                    defaultOpen={adminPaths.some((p) => currentPath.startsWith(p))}
+                    className="group/collapsible"
+                  >
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton
+                          tooltip="Admin"
+                          isActive={adminPaths.some((p) => currentPath.startsWith(p))}
+                        >
+                          <ShieldCheck className="mr-2 h-4 w-4" />
+                          {!collapsed && <span>Admin</span>}
+                          {!collapsed && (
+                            <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                          )}
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {adminLeftovers.map((item) => (
+                            <SidebarMenuSubItem key={item.title}>
+                              <SidebarMenuSubButton asChild isActive={isActive(item.url)}>
+                                <Link to={item.url}>
+                                  <item.icon className="mr-2 h-3.5 w-3.5" />
+                                  <span>{item.title}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
+
       </SidebarContent>
 
       <SidebarFooter>

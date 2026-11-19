@@ -148,3 +148,47 @@ describe("the screens use the registry", () => {
     expect(readFileSync("src/App.tsx", "utf8")).toContain('path="/admin/portal-modules"');
   });
 });
+
+describe("the page is called what it holds", () => {
+  // It stopped being only modules when survey configuration moved onto it.
+  // Comments stripped: a source assertion that passes on a file's own prose
+  // is a trap this project has walked into before.
+  const src = (p: string) =>
+    readFileSync(p, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  const PAGE = "src/pages/admin/PortalModules.tsx";
+
+  it("says Patient Portal Configuration in all three places", () => {
+    expect(src(PAGE)).toContain(">Patient Portal Configuration</h1>");
+    expect(src("src/components/layout/AppSidebar.tsx")).toContain(
+      '{ title: "Patient Portal Configuration", url: "/admin/portal-modules"',
+    );
+    expect(src("src/pages/Admin.tsx")).toContain('title: "Patient Portal Configuration",');
+  });
+
+  it("offers the two halves as tabs, modules first", () => {
+    const page = src(PAGE);
+    expect(page).toContain('<Tabs defaultValue="modules">');
+    expect(page).toContain('<TabsTrigger value="modules">Patient Portal Modules</TabsTrigger>');
+    expect(page).toContain('<TabsTrigger value="surveys">Surveys Configuration</TabsTrigger>');
+  });
+
+  it("puts the surveys inside their own tab, not loose below the switches", () => {
+    // The whole point of the change: they were stacked.
+    const page = src(PAGE);
+    const tab = page.indexOf('<TabsContent value="surveys"');
+    expect(tab).toBeGreaterThan(-1);
+    expect(page.indexOf("<PortalSurveyConfig />")).toBeGreaterThan(tab);
+  });
+
+  it("keeps the switches and their save in the modules tab", () => {
+    const page = src(PAGE);
+    const modules = page.indexOf('<TabsContent value="modules"');
+    const surveys = page.indexOf('<TabsContent value="surveys"');
+    for (const inside of ["PORTAL_MODULE_GROUPS.map", "Save changes"]) {
+      const at = page.indexOf(inside);
+      expect(at).toBeGreaterThan(modules);
+      expect(at).toBeLessThan(surveys);
+    }
+  });
+});

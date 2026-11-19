@@ -193,7 +193,7 @@ const adminSubItems = [
   { title: "History Tracking", url: "/admin/history-tracking", icon: History, moduleKey: "settings" },
   { title: "Knowledge Categories", url: "/admin/knowledge-categories", icon: BookOpen, moduleKey: "settings" },
   { title: "Currency & Billing", url: "/admin/currency", icon: Coins, moduleKey: "settings" },
-  { title: "Patient Portal Modules", url: "/admin/portal-modules", icon: Smartphone, moduleKey: "settings" },
+  { title: "Patient Portal Configuration", url: "/admin/portal-modules", icon: Smartphone, moduleKey: "settings" },
   { title: "Feedback", url: "/admin/feedback", icon: MessageSquareWarning, moduleKey: "settings" },
   { title: "Attendance", url: "/admin/attendance", icon: CalendarCheck, moduleKey: "attendance_admin" },
   { title: "User Management", url: "/user-management", icon: Users, adminOnly: true },

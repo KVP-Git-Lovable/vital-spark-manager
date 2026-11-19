@@ -41,7 +41,7 @@ const sections = [
     icon: Coins,
   },
   {
-    title: "Patient Portal Modules",
+    title: "Patient Portal Configuration",
     description: "Switch on and off what patients see in the portal \u2014 bills, photos, history, shop, surveys, feedback.",
     url: "/admin/portal-modules",
     icon: Smartphone,

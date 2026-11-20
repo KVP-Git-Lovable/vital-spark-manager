@@ -816,7 +816,10 @@ function ProcedureForm({
         .filter((rx) => losesCatalogueLink(rx.product_id, catalogue))
         .map((rx) => rx.medicine_name);
       const rxToSave = prescriptions
-        .map((rx) => ({
+        .map((rx, i) => ({
+          // The position the clinician put it in, exactly as the services
+          // list beside this one already records.
+          sort_order: i,
           product_id: productIdForSave(rx.product_id, catalogue),
           medicine_name: rx.medicine_name,
           dosage: "",

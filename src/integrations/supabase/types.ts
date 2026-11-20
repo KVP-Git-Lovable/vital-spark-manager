@@ -5651,6 +5651,7 @@ export type Database = {
           procedure_id: string | null
           product_id: string | null
           quantity: number
+          sort_order: number | null
           survey_response_id: string | null
           updated_by: string | null
         }
@@ -5666,6 +5667,7 @@ export type Database = {
           procedure_id?: string | null
           product_id?: string | null
           quantity?: number
+          sort_order?: number | null
           survey_response_id?: string | null
           updated_by?: string | null
         }
@@ -5681,6 +5683,7 @@ export type Database = {
           procedure_id?: string | null
           product_id?: string | null
           quantity?: number
+          sort_order?: number | null
           survey_response_id?: string | null
           updated_by?: string | null
         }

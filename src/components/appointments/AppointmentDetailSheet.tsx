@@ -950,7 +950,11 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       const { data, error } = await supabase
         .from("prescriptions")
         .select("medicine_name, quantity, product_id")
-        .in("procedure_id", procedureIds);
+        .in("procedure_id", procedureIds)
+        // The order the clinician typed them - see lib/prescriptionOrder.ts.
+        .order("sort_order", { nullsFirst: false })
+        .order("created_at")
+        .order("id");
       if (error) throw error;
       return data || [];
     },

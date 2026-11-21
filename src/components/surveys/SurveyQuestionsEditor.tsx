@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import SurveyQuestionImage from "@/components/portal/SurveyQuestionImage";
 import { illustrationFor } from "@/lib/surveyIllustration";
 import {
-  QUESTIONS_PER_PAGE_MAX, QUESTIONS_PER_PAGE_MIN, maxChoicesCeiling, questionsPerPage,
+  QUESTIONS_PER_PAGE_MAX, QUESTIONS_PER_PAGE_MIN, idealAnswerFrom, idealAnswerText, maxChoicesCeiling, questionsPerPage,
 } from "@/lib/surveyQuestionConfig";
 
 /**
@@ -460,6 +460,28 @@ export function SurveyQuestionsEditor({
                 })}
               />
             )}
+
+            {/* What a good answer looks like. Never shown to the patient: the
+                recommendation AI compares each answer against it. */}
+            <div className="space-y-1">
+              <Label htmlFor={`ideal-${i}`} className="text-xs">
+                {q.question_type === "scale"
+                  ? "Ideal score (1-10)"
+                  : q.question_type === "text"
+                    ? "Ideal answer (keywords or expected response)"
+                    : "Ideal answer"}
+              </Label>
+              <Input
+                id={`ideal-${i}`}
+                type={q.question_type === "scale" ? "number" : "text"}
+                min={q.question_type === "scale" ? 1 : undefined}
+                max={q.question_type === "scale" ? 10 : undefined}
+                value={idealAnswerText(q.ideal_answer)}
+                placeholder={q.question_type === "text" ? "Expected keywords or answer" : "The ideal/expected answer"}
+                disabled={disabled}
+                onChange={(e) => update(i, { ideal_answer: idealAnswerFrom(q.question_type, e.target.value) })}
+              />
+            </div>
 
             {/* The picture. Without one the portal shows the illustration it
                 has always shown, so this says which, rather than leaving the

@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { THERAPIST_ROLES, THERAPIST_FIELD_LABEL } from "@/lib/appointmentTherapist";
 import { toast } from "sonner";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { format } from "date-fns";
 import { shortPatientId } from "@/lib/utils";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
@@ -177,9 +178,15 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
             serviceName: data.serviceName,
             patientGender: patient.gender,
           },
-        }).then(({ error }) => {
-          if (error) console.error("WhatsApp send failed:", error);
-          else toast.success("WhatsApp confirmation sent");
+        }).then(async ({ error }) => {
+          if (error) {
+            // Told to the front desk, as on the Appointments page - a silent
+            // failure is a confirmation nobody knows to re-send.
+            console.error("WhatsApp send failed:", error);
+            toast.error(await edgeFunctionErrorMessage(error, "The WhatsApp confirmation could not be sent."));
+          } else {
+            toast.success("WhatsApp confirmation sent");
+          }
         });
       }
       onOpenChange(false);

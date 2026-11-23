@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/toaster";
+import { AppLoadingScreen } from "@/components/shared/AppLoadingScreen";
 import { ALL_FEEDBACKS_KEY } from "@/lib/reportsCatalog";
 import { staffAccess } from "@/lib/staffAccess";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -220,7 +221,7 @@ function NotStaffNotice() {
 
 function AdminRoute({ children }: { children: ReactNode }) {
   const { isAdmin, staffDeactivated, staffProfile, loading, session } = useAuth();
-  if (loading) return null;
+  if (loading) return <AppLoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
   if (staffDeactivated) return <DeactivatedNotice />;
   if (!staffProfile) return <NotStaffNotice />;
@@ -229,7 +230,7 @@ function AdminRoute({ children }: { children: ReactNode }) {
 
 function ProtectedRoute({ moduleKey, children }: { moduleKey: string; children: ReactNode }) {
   const { isAdmin, permissions, staffDeactivated, staffProfile, loading, session } = useAuth();
-  if (loading) return null;
+  if (loading) return <AppLoadingScreen />;
   const access = staffAccess({
     hasSession: !!session,
     isStaff: !!staffProfile,

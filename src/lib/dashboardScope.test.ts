@@ -83,11 +83,11 @@ describe("the dashboard page branches on it", () => {
     expect(text).toContain('<MyDashboard withAppointments={scope === "my_day"} />');
   });
 
-  it("renders NOTHING while auth is still loading", () => {
+  it("renders only the loading screen while auth is still loading", () => {
     // While it resolves, permissions is {} and the empty-map rule reads as
     // "full" - so without this a therapist watches the clinic dashboard
     // flash past, and all eleven of its queries have already been sent.
-    expect(src()).toMatch(/const \{ isAdmin, permissions, loading \} = useAuth\(\);\s*\n\s*if \(loading\) return null;/);
+    expect(src()).toMatch(/const \{ isAdmin, permissions, loading \} = useAuth\(\);\s*\n\s*if \(loading\) return <AppLoadingScreen \/>;/);
   });
 
   it("keeps the clinic dashboard as its own component", () => {

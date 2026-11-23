@@ -1,4 +1,5 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppLoadingScreen } from "@/components/shared/AppLoadingScreen";
 import { AppSidebar } from "./AppSidebar";
 import { Search, User, LogOut, CalendarCheck } from "lucide-react";
 import { NotificationsBell } from "@/components/layout/NotificationsBell";
@@ -66,11 +67,9 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   // Redirect to login if not authenticated
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-      </div>
-    );
+    // Not a bare spinner: if the sign-in check stalls this used to spin for
+    // ever with nothing to tap. See AppLoadingScreen.
+    return <AppLoadingScreen />;
   }
 
   if (!user) {

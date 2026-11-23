@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { AppLoadingScreen } from "@/components/shared/AppLoadingScreen";
 import { useState, useMemo, useEffect } from "react";
 import { Users, Calendar, IndianRupee, UserCheck, Clock, Receipt, ClipboardList, AlertCircle, Megaphone, Pin, PinOff } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -825,7 +826,7 @@ const ClinicDashboard = () => {
  */
 const Index = () => {
   const { isAdmin, permissions, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <AppLoadingScreen />;
   const scope = dashboardScope({ isAdmin, permissions });
   if (scope === "full") return <ClinicDashboard />;
   return <MyDashboard withAppointments={scope === "my_day"} />;

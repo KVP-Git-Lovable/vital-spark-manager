@@ -123,11 +123,14 @@ describe("the page says something when nothing loads", () => {
     expect(html()).toMatch(/id="boot-retry"[\s\S]{0,200}?hidden/);
   });
 
-  it("does not clear caches or unregister the worker from the shell", () => {
-    // That would fight the update machinery in registerPwa.ts, which has
-    // already been tuned through three separate faults.
+  it("clears stored copies only when the app never started, at most once per session", () => {
+    // The shell is the one place this may happen: no app is running there,
+    // so nothing fights the update machinery in registerPwa.ts. Automatic
+    // recovery is guarded by a sessionStorage flag so it can never loop.
     const source = html();
-    expect(source).not.toMatch(/caches\.delete|unregister\(/);
+    expect(source).toMatch(/function recover\(\)[\s\S]*unregister\(/);
+    expect(source).toMatch(/function recover\(\)[\s\S]*caches\.delete/);
+    expect(source).toMatch(/sessionStorage\.getItem\(RECOVERY_FLAG\)\) return;\s*sessionStorage\.setItem\(RECOVERY_FLAG/);
   });
 
   it("still loads the app the same way", () => {

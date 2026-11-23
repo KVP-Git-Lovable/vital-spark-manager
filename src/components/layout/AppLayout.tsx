@@ -2,6 +2,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { Search, User, LogOut, CalendarCheck } from "lucide-react";
 import { NotificationsBell } from "@/components/layout/NotificationsBell";
+import { ClinicNotes } from "@/components/layout/ClinicNotes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
@@ -119,6 +120,8 @@ export function AppLayout({ children }: AppLayoutProps) {
             </div>
             <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
               {/* Only ever visible when a new build is genuinely waiting. */}
+
+              <ClinicNotes />
 
               <NotificationsBell />
 

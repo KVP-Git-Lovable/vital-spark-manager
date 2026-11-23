@@ -35,7 +35,50 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <!-- Something inside #root, rather than an empty div.
+
+         The app is installed to the home screen, and a few staff were opening
+         it to a white screen with no message, no retry and nothing anyone
+         could report but "it is blank". If the module below fails to load -
+         a chunk that 404s, a connection that dies mid-fetch - React never
+         mounts, so the error boundary inside it never exists either.
+
+         React replaces all of this the instant it mounts, so in normal use
+         nobody ever sees it. -->
+    <div id="root">
+      <div id="boot-shell" style="min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-family:system-ui,-apple-system,'Segoe UI',Arial,sans-serif;color:#52514e;background:#f5f7fa;padding:24px;text-align:center">
+        <img src="/pwa-192.png" alt="" width="56" height="56" style="border-radius:12px" />
+        <p id="boot-message" style="margin:0;font-size:15px">Loading The Skin Clinic…</p>
+        <button
+          id="boot-retry"
+          type="button"
+          hidden
+          style="display:none;margin-top:4px;padding:10px 20px;font-size:15px;border:1px solid #cfcec9;border-radius:8px;background:#fff;color:#0b0b0b"
+        >Reload</button>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // If the shell is still here after a while, the app did not start.
+      // Say so and offer a reload - deliberately nothing more. Clearing
+      // caches or unregistering the service worker from here would fight the
+      // update machinery in registerPwa.ts, which is carefully tuned.
+      (function () {
+        setTimeout(function () {
+          var shell = document.getElementById("boot-shell");
+          if (!shell || !shell.isConnected) return;
+          var message = document.getElementById("boot-message");
+          var retry = document.getElementById("boot-retry");
+          if (message) message.textContent = "The app could not load. Check your connection and try again.";
+          if (retry) {
+            retry.hidden = false;
+            retry.style.display = "inline-block";
+            retry.addEventListener("click", function () {
+              window.location.reload();
+            });
+          }
+        }, 12000);
+      })();
+    </script>
   </body>
 </html>

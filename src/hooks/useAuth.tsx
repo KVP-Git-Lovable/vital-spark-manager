@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User } from "@supabase/supabase-js";
+import { resolveStoredSession } from "@/lib/authBootstrap";
 
 interface StaffProfile {
   id: string;
@@ -320,7 +321,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }, 0);
     });
 
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    // Never bare .then(): loading starts true and App.tsx renders null while
+    // it is, so a getSession() that rejects or never settles leaves every
+    // protected route showing nothing, for ever. A few staff had exactly that
+    // on their home-screen app, every time they opened it - the stored token
+    // persists, so the same bad read happened on every launch. A failed check
+    // means signed out, which lands on the login screen, and signing in writes
+    // a fresh token over the bad one. See lib/authBootstrap.ts.
+    void resolveStoredSession(() => supabase.auth.getSession()).then(({ session: s, reason }) => {
+      if (reason !== "ok") {
+        console.error(`Could not read the stored session (${reason}); treating as signed out.`);
+      }
       void syncSessionState(s);
     });
 

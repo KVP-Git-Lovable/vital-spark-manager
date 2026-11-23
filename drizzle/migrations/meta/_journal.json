@@ -246,6 +246,13 @@
       "when": 1795160413158,
       "tag": "0034_lock_down_trash_functions",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1795427005181,
+      "tag": "0035_trash_and_visit_notes_no_caller_built_sql",
+      "breakpoints": true
     }
   ]
 }

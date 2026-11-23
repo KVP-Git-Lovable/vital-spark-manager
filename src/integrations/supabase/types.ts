@@ -9630,6 +9630,10 @@ export type Database = {
       }
       trash_insertable_columns: { Args: { _table: string }; Returns: string }
       trash_knowledge_article: { Args: { _id: string }; Returns: undefined }
+      trash_reinsert_record: {
+        Args: { _data: Json; _object_type: string; _record_id: string }
+        Returns: undefined
+      }
       trash_restore_children: {
         Args: { _child_data: Json; _root_id: string; _root_table: string }
         Returns: undefined

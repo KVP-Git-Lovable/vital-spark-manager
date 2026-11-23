@@ -18,13 +18,29 @@ import { Button } from "@/components/ui/button";
  */
 export const SLOW_LOADING_MS = 10_000;
 
-export function AppLoadingScreen({ slowAfterMs = SLOW_LOADING_MS }: { slowAfterMs?: number }) {
+/**
+ * `variant="spinner"` keeps the small spinner shown between pages, so moving
+ * around the app looks the same as before; it only changes if the page has
+ * still not arrived after SLOW_LOADING_MS.
+ */
+export function AppLoadingScreen({
+  slowAfterMs = SLOW_LOADING_MS,
+  variant = "logo",
+}: { slowAfterMs?: number; variant?: "logo" | "spinner" }) {
   const [slow, setSlow] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSlow(true), slowAfterMs);
     return () => window.clearTimeout(timer);
   }, [slowAfterMs]);
+
+  if (variant === "spinner" && !slow) {
+    return (
+      <div role="status" aria-label="Loading" className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <div

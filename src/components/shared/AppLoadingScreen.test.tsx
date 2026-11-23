@@ -22,3 +22,14 @@ describe("AppLoadingScreen", () => {
     expect(SLOW_LOADING_MS).toBe(10_000);
   });
 });
+
+describe("AppLoadingScreen between pages", () => {
+  it("keeps the small spinner at first, then offers Reload after 10 seconds", () => {
+    vi.useFakeTimers();
+    render(<AppLoadingScreen variant="spinner" />);
+    expect(screen.queryByRole("button", { name: "Reload" })).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("");
+    act(() => { vi.advanceTimersByTime(SLOW_LOADING_MS); });
+    expect(screen.getByRole("button", { name: "Reload" })).toBeTruthy();
+  });
+});

@@ -59,11 +59,81 @@
     </div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // If the shell is still here after a while, the app did not start.
-      // Say so and offer a reload - deliberately nothing more. Clearing
-      // caches or unregistering the service worker from here would fight the
-      // update machinery in registerPwa.ts, which is carefully tuned.
+      // Recovery for an app that never started. The usual cause is a service
+      // worker answering with an index.html from an old precache whose hashed
+      // chunks (/assets/index-xxxx.js) were removed by a later deploy: the
+      // module 404s, React never mounts, the page stays blank.
+      //
+      // Clearing caches and unregistering service workers happens ONLY here,
+      // where no app is running and there is no update machinery to fight.
+      // Never do this from the running app - registerPwa.ts / pwaUpdate.ts
+      // own updates there and are carefully tuned.
       (function () {
+        var RECOVERY_FLAG = "skin-clinic-boot-recovery";
+        var recovering = false;
+
+        function reload() {
+          window.location.reload();
+        }
+
+        function recover() {
+          if (recovering) return;
+          recovering = true;
+          // Reload even if a cleanup step hangs.
+          var safety = setTimeout(reload, 5000);
+          var jobs = [];
+          try {
+            if ("serviceWorker" in navigator && navigator.serviceWorker.getRegistrations) {
+              jobs.push(
+                navigator.serviceWorker.getRegistrations().then(function (regs) {
+                  return Promise.all(regs.map(function (r) { return r.unregister(); }));
+                })
+              );
+            }
+            if ("caches" in window) {
+              jobs.push(
+                caches.keys().then(function (keys) {
+                  return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+                })
+              );
+            }
+          } catch (e) {}
+          var done = function () { clearTimeout(safety); reload(); };
+          Promise.all(jobs.map(function (j) { return j.catch(function () {}); })).then(done, done);
+        }
+
+        function isMainModule(el) {
+          if (!el || el.tagName !== "SCRIPT" || el.type !== "module" || !el.src) return false;
+          try {
+            var url = new URL(el.src, window.location.href);
+            if (url.origin !== window.location.origin) return false;
+            return /^\/assets\/index-[^/]*\.js$/.test(url.pathname) || url.pathname === "/src/main.tsx";
+          } catch (e) {
+            return false;
+          }
+        }
+
+        // Script load failures do not bubble, so listen in the capture phase.
+        // Automatic recovery runs at most once per session, so it can never loop;
+        // without sessionStorage it does not run at all and the Reload button
+        // below is the way out.
+        window.addEventListener(
+          "error",
+          function (event) {
+            if (!isMainModule(event.target)) return;
+            try {
+              if (sessionStorage.getItem(RECOVERY_FLAG)) return;
+              sessionStorage.setItem(RECOVERY_FLAG, "1");
+            } catch (e) {
+              return;
+            }
+            recover();
+          },
+          true
+        );
+
+        // If the shell is still here after a while, the app did not start.
+        // Say so and offer a Reload that clears the stale worker and caches.
         setTimeout(function () {
           var shell = document.getElementById("boot-shell");
           if (!shell || !shell.isConnected) return;
@@ -74,7 +144,8 @@
             retry.hidden = false;
             retry.style.display = "inline-block";
             retry.addEventListener("click", function () {
-              window.location.reload();
+              retry.disabled = true;
+              recover();
             });
           }
         }, 12000);

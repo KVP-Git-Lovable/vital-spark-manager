@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   askableQuestions, configuredQuestions, maxChoicesCeiling, pageBlockers, pageLabel,
   questionImage, questionPages, questionsPerPage, validateAnswer, type ConfiguredQuestion,
+  stillAsked, idealAnswerText, idealAnswerFrom,
 } from "./surveyQuestionConfig";
 import { questionSyncPlan } from "./surveyQuestionSync";
 
@@ -271,5 +272,57 @@ describe("what the database promises", () => {
     // them left bare lets any signed-in account replace a survey picture.
     const guards = sql().match(/bucket_id = 'survey-images' and \(select public\.is_active_staff\(\)\)/g) ?? [];
     expect(guards).toHaveLength(2);
+  });
+});
+
+describe("clinic survey screens skip retired questions", () => {
+  it("drops only an explicitly retired question", () => {
+    const rows = [
+      { id: "a", is_active: true },
+      { id: "b", is_active: false },
+      { id: "c", is_active: null },
+      { id: "d" },
+    ];
+    expect(stillAsked(rows).map((q) => q.id)).toEqual(["a", "c", "d"]);
+  });
+
+  it("is used by staff fill screens and the template page, which used to ask retired questions", () => {
+    for (const f of [
+      "src/components/surveys/SurveyFill.tsx",
+      "src/pages/SurveyNew.tsx",
+      "src/pages/SurveyTemplateDetail.tsx",
+    ]) {
+      expect(readFileSync(f, "utf8"), f).toMatch(/stillAsked\(/);
+    }
+  });
+});
+
+describe("ideal answers", () => {
+  it("reads the stored { value } back into the box", () => {
+    expect(idealAnswerText({ value: 7 })).toBe("7");
+    expect(idealAnswerText({ value: "Never" })).toBe("Never");
+    expect(idealAnswerText({})).toBe("");
+    expect(idealAnswerText(null)).toBe("");
+  });
+
+  it("stores an empty box as {} rather than a zero score", () => {
+    expect(idealAnswerFrom("scale", "")).toEqual({});
+    expect(idealAnswerFrom("text", "   ")).toEqual({});
+  });
+
+  it("keeps a scale ideal within 1-10", () => {
+    expect(idealAnswerFrom("scale", "8")).toEqual({ value: 8 });
+    expect(idealAnswerFrom("scale", "15")).toEqual({ value: 10 });
+    expect(idealAnswerFrom("scale", "0")).toEqual({ value: 1 });
+  });
+
+  it("keeps choice and text ideals as typed", () => {
+    expect(idealAnswerFrom("single_choice", "Twice a day")).toEqual({ value: "Twice a day" });
+    expect(idealAnswerFrom("text", "sunscreen daily ")).toEqual({ value: "sunscreen daily " });
+  });
+
+  it("the question editor writes ideal_answer again", () => {
+    const editor = readFileSync("src/components/surveys/SurveyQuestionsEditor.tsx", "utf8");
+    expect(editor).toMatch(/ideal_answer: idealAnswerFrom\(/);
   });
 });

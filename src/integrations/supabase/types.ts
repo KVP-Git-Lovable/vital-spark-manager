@@ -9624,12 +9624,18 @@ export type Database = {
         Args: { _object_type: string; _record_id: string }
         Returns: Json
       }
+      trash_child_data_problem: {
+        Args: { _child_data: Json; _root_id: string; _root_table: string }
+        Returns: string
+      }
+      trash_insertable_columns: { Args: { _table: string }; Returns: string }
       trash_knowledge_article: { Args: { _id: string }; Returns: undefined }
       trash_restore_children: {
-        Args: { _child_data: Json }
+        Args: { _child_data: Json; _root_id: string; _root_table: string }
         Returns: undefined
       }
       whatsapp_message_is_foreign: { Args: { body: string }; Returns: boolean }
+      whatsapp_patient_for_phone: { Args: { p_phone: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never

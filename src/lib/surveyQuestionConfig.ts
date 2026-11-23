@@ -53,6 +53,35 @@ export function configuredQuestions(rows: unknown): ConfiguredQuestion[] {
 export const askableQuestions = (questions: ConfiguredQuestion[]): ConfiguredQuestion[] =>
   questions.filter((q) => q.is_active);
 
+/**
+ * The same rule for the clinic's own survey screens, which read raw rows
+ * rather than ConfiguredQuestion. A row with no is_active (older data) is
+ * still asked; only an explicit retirement takes a question out. Answers views
+ * must NOT use this - a past response still shows every question it answered.
+ */
+export const stillAsked = <T extends { is_active?: boolean | null }>(rows: T[]): T[] =>
+  rows.filter((q) => q.is_active !== false);
+
+/**
+ * The ideal answer the recommendation AI compares a patient's answer against.
+ * Stored as { value } on survey_questions.ideal_answer; an empty box is {}.
+ */
+export function idealAnswerText(ideal: unknown): string {
+  if (!ideal || typeof ideal !== "object") return "";
+  const value = (ideal as { value?: unknown }).value;
+  return value === undefined || value === null ? "" : String(value);
+}
+
+export function idealAnswerFrom(questionType: string, text: string): { value?: string | number } {
+  const trimmed = text.trim();
+  if (!trimmed) return {};
+  if (questionType === "scale") {
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? { value: Math.min(10, Math.max(1, Math.round(n))) } : {};
+  }
+  return { value: text };
+}
+
 export const QUESTIONS_PER_PAGE_MIN = 1;
 export const QUESTIONS_PER_PAGE_MAX = 5;
 

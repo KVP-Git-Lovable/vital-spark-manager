@@ -239,6 +239,13 @@
       "when": 1794890565086,
       "tag": "0033_patient_summary_on_knowledge_articles",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795160413158,
+      "tag": "0034_lock_down_trash_functions",
+      "breakpoints": true
     }
   ]
 }

@@ -253,6 +253,13 @@
       "when": 1795427005181,
       "tag": "0035_trash_and_visit_notes_no_caller_built_sql",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795518518252,
+      "tag": "0036_lock_down_suppression_and_reference_reads",
+      "breakpoints": true
     }
   ]
 }

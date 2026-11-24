@@ -1,4 +1,4 @@
-import { articleResources, type KnowledgeArticle } from "@/lib/knowledge";
+import { type KnowledgeArticle } from "@/lib/knowledge";
 
 /**
  * Browsing the knowledge library.
@@ -144,15 +144,17 @@ export function readingMinutes(
 /**
  * The picture on the card, as a path in the private bucket.
  *
- * A cover chosen in the editor wins; otherwise the article's first picture
- * attachment stands in, so an article with a diagram already has a cover
- * without anybody doing anything. Null means the card draws its banner.
+ * Only the cover that was deliberately set - uploaded, or generated from the
+ * article and kept. It used to fall back to the article's first picture
+ * ATTACHMENT, and on the live page that pulled clinical diagrams - skin
+ * cross-sections, anatomical drawings - into the card header, which is what
+ * the clinic asked to stop. An attachment is a figure inside the article, not
+ * a cover for it.
+ *
+ * Null means the card draws its banner.
  */
-export function coverPath(article: Pick<KnowledgeArticle, "cover_image_path" | "resources">): string | null {
-  const chosen = (article.cover_image_path ?? "").trim();
-  if (chosen) return chosen;
-  const picture = articleResources(article.resources).find((r) => r.kind === "image" && r.path);
-  return picture?.path ?? null;
+export function coverPath(article: Pick<KnowledgeArticle, "cover_image_path">): string | null {
+  return (article.cover_image_path ?? "").trim() || null;
 }
 
 /**

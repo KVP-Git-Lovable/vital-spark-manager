@@ -140,28 +140,28 @@ describe("how long it takes to read", () => {
 });
 
 describe("the picture on the card", () => {
-  const resources = (...kinds: { kind: string; path?: string }[]) =>
-    kinds.map((r, i) => ({ id: `r${i}`, title: `r${i}`, ...r }));
-
-  it("uses the cover that was chosen", () => {
-    expect(coverPath({ cover_image_path: "u/g/a.jpg", resources: resources({ kind: "image", path: "u/g/b.jpg" }) })).toBe("u/g/a.jpg");
+  it("uses the cover that was set", () => {
+    expect(coverPath({ cover_image_path: "u/g/a.jpg" })).toBe("u/g/a.jpg");
   });
 
-  it("falls back to the first picture already attached", () => {
-    // An article with a diagram gets a cover without anybody doing anything.
-    expect(coverPath({ cover_image_path: null, resources: resources({ kind: "file", path: "u/g/x.pdf" }, { kind: "image", path: "u/g/b.jpg" }) })).toBe("u/g/b.jpg");
+  it("never reaches for a picture ATTACHED to the article", () => {
+    // It used to, and on the live page that pulled clinical diagrams - skin
+    // cross-sections, anatomical drawings - into the card header. An
+    // attachment is a figure inside the article, not a cover for it.
+    const withDiagram = {
+      cover_image_path: null,
+      resources: [{ id: "r0", kind: "image", title: "Cross-section", path: "u/g/diagram.png" }],
+    } as never;
+    expect(coverPath(withDiagram)).toBe(null);
+    expect(code("src/lib/knowledgeBrowse.ts")).not.toContain("articleResources");
   });
 
-  it("ignores a blank cover rather than showing nothing", () => {
-    expect(coverPath({ cover_image_path: "   ", resources: resources({ kind: "image", path: "u/g/b.jpg" }) })).toBe("u/g/b.jpg");
-  });
-
-  it("will not use a link or a video as a picture", () => {
-    expect(coverPath({ cover_image_path: null, resources: resources({ kind: "video", path: "u/g/v.mp4" }, { kind: "article" }) })).toBe(null);
+  it("ignores a cover that is only whitespace", () => {
+    expect(coverPath({ cover_image_path: "   " })).toBe(null);
   });
 
   it("says there is none, so the card draws its banner", () => {
-    expect(coverPath({ cover_image_path: null, resources: null })).toBe(null);
+    expect(coverPath({ cover_image_path: null })).toBe(null);
   });
 });
 

@@ -94,9 +94,14 @@ describe("the picture", () => {
     expect(signed).toHaveBeenCalledWith("u1/g1/cover.jpg");
   });
 
-  it("falls back to a picture already attached to the article", async () => {
-    card({ resources: [{ id: "r1", kind: "image", title: "Diagram", path: "u1/g1/diagram.png" }] as never });
-    expect(await screen.findByRole("presentation")).toHaveAttribute("src", "https://signed/u1/g1/diagram.png");
+  it("does not drag in a diagram attached to the article", async () => {
+    // It used to, and the clinic saw skin cross-sections cropped into the
+    // card headers. An attachment is a figure inside the article, not a
+    // cover for it.
+    card({ resources: [{ id: "r1", kind: "image", title: "Cross-section", path: "u1/g1/diagram.png" }] as never });
+    expect(await screen.findByText("Q-Switch Laser Protocol")).toBeInTheDocument();
+    expect(screen.queryByRole("presentation")).not.toBeInTheDocument();
+    expect(signed).not.toHaveBeenCalled();
   });
 
   it("draws its own banner when there is neither, and asks for no URL", () => {

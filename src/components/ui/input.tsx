@@ -4,15 +4,20 @@ import { cn } from "@/lib/utils";
 import { armAutocorrect } from "@/lib/autocorrect/focus";
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, spellCheck, onFocus, ...props }, ref) => {
+  ({ className, type, spellCheck, autoCorrect, onFocus, ...props }, ref) => {
     // Free-text boxes get the browser's red underline + right-click suggestions;
     // emails, phones, numbers, passwords, dates etc. stay unchecked.
-    const isProse = !type || type === "text" || type === "search";
+    //
+    // An explicit autoCorrect="off" opts a text box out, which is what a
+    // REVEALED password needs: PasswordInput flips type to "text" so the
+    // characters can be read, and without this the autocorrect engine would
+    // attach to it and could rewrite what somebody typed.
+    const isProse = (!type || type === "text" || type === "search") && autoCorrect !== "off";
     return (
       <input
         type={type}
         spellCheck={spellCheck ?? isProse}
-        autoCorrect={isProse ? "on" : "off"}
+        autoCorrect={autoCorrect ?? (isProse ? "on" : "off")}
         onFocus={(e) => {
           if (isProse && type !== "search") armAutocorrect(e.currentTarget);
           onFocus?.(e);

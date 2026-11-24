@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -877,11 +878,11 @@ export default function UserManagement() {
               <div className="space-y-3">
                 <div>
                   <Label>New Password</Label>
-                  <Input type="password" value={resetPwValue} onChange={(e) => setResetPwValue(e.target.value)} />
+                  <PasswordInput value={resetPwValue} onChange={(e) => setResetPwValue(e.target.value)} />
                 </div>
                 <div>
                   <Label>Confirm Password</Label>
-                  <Input type="password" value={resetPwConfirm} onChange={(e) => setResetPwConfirm(e.target.value)} />
+                  <PasswordInput value={resetPwConfirm} onChange={(e) => setResetPwConfirm(e.target.value)} />
                 </div>
                 <p className="text-xs text-muted-foreground">{PASSWORD_RULE_TEXT}</p>
               </div>

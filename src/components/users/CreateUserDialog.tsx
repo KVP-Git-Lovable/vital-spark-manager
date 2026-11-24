@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -290,12 +291,12 @@ export default function CreateUserDialog({ open, onOpenChange, staffList, roles 
                 <>
                   <div>
                     <Label>Password</Label>
-                    <Input type="password" value={password} onChange={(e) => { setPassword(e.target.value); setFormError(null); }} placeholder="At least 8 characters" aria-invalid={Boolean(formError)} />
+                    <PasswordInput value={password} onChange={(e) => { setPassword(e.target.value); setFormError(null); }} placeholder="At least 8 characters" aria-invalid={Boolean(formError)} />
                     <p className="mt-1 text-xs text-muted-foreground">{PASSWORD_RULE_TEXT}</p>
                   </div>
                   <div>
                     <Label>Confirm Password</Label>
-                    <Input type="password" value={confirmPassword} onChange={(e) => { setConfirmPassword(e.target.value); setFormError(null); }} aria-invalid={Boolean(formError)} />
+                    <PasswordInput value={confirmPassword} onChange={(e) => { setConfirmPassword(e.target.value); setFormError(null); }} aria-invalid={Boolean(formError)} />
                   </div>
                 </>
               )}

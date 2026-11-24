@@ -5,7 +5,7 @@ import { assertWrote } from "@/lib/rowAccess";
 import { PASSWORD_RULE_TEXT, passwordProblem } from "@/lib/passwordRules";
 import { SESSION_GONE_BODY, SESSION_GONE_TITLE, isSessionGone } from "@/lib/sessionExpired";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { KeyRound, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -117,23 +117,21 @@ export function ChangePasswordRequired() {
         <div className="space-y-3">
           <div>
             <Label htmlFor="new-password">New password</Label>
-            <Input
+            <PasswordInput
               id="new-password"
-              type="password"
               autoComplete="new-password"
               autoFocus
-              className="mt-1.5"
+              containerClassName="mt-1.5"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
           <div>
             <Label htmlFor="confirm-password">Confirm password</Label>
-            <Input
+            <PasswordInput
               id="confirm-password"
-              type="password"
               autoComplete="new-password"
-              className="mt-1.5"
+              containerClassName="mt-1.5"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
             />

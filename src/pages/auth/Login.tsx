@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Mail, Lock, Loader2, ArrowRight } from "lucide-react";
 import skinClinicLogo from "@/assets/skin-clinic-logo.png";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
@@ -64,7 +65,7 @@ const Login = () => {
             <Label className="text-sm font-medium flex items-center gap-2">
               <Lock className="h-3.5 w-3.5 text-primary" /> Password
             </Label>
-            <Input className="mt-2 h-12" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} type="password" />
+            <PasswordInput className="h-12" containerClassName="mt-2" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
           </div>
           <Button className="w-full h-12 text-base gap-2" type="submit" disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Sign In <ArrowRight className="h-4 w-4" /></>}

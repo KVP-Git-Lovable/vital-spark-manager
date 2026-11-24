@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Heart, Mail, Lock, User, Phone, Loader2, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
@@ -84,7 +85,7 @@ const Signup = () => {
           </div>
           <div>
             <Label className="text-sm font-medium flex items-center gap-1"><Lock className="h-3.5 w-3.5 text-primary" /> Password *</Label>
-            <Input className="mt-1.5 h-11" placeholder="Min 6 characters" value={form.password} onChange={e => update("password", e.target.value)} type="password" />
+            <PasswordInput className="h-11" containerClassName="mt-1.5" placeholder="Min 6 characters" value={form.password} onChange={e => update("password", e.target.value)} />
           </div>
           <Button className="w-full h-12 text-base gap-2" type="submit" disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Create Account <ArrowRight className="h-4 w-4" /></>}

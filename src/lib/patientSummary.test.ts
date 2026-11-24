@@ -263,9 +263,12 @@ describe("where the gate is applied", () => {
   });
 
   it("the list shows which articles already have one", () => {
-    const src = read("src/pages/KnowledgeArticles.tsx");
-    expect(src).toContain("hasPatientSummary(a)");
+    // The library is a grid of cards now, so the mark lives on the card the
+    // list renders rather than in the page itself.
+    const src = read("src/components/knowledge/ArticleCard.tsx");
+    expect(src).toContain("hasPatientSummary(article)");
     expect(src).toContain("Patient summary");
+    expect(read("src/pages/KnowledgeArticles.tsx")).toContain("<ArticleCard");
   });
 
   it("the patient summary AI never searches the web", () => {

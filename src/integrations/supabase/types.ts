@@ -3509,6 +3509,7 @@ export type Database = {
           clinical_protocol: string
           complications_management: string
           contraindications: string
+          cover_image_path: string | null
           created_at: string
           created_by: string | null
           created_by_name: string | null
@@ -3543,6 +3544,7 @@ export type Database = {
           clinical_protocol?: string
           complications_management?: string
           contraindications?: string
+          cover_image_path?: string | null
           created_at?: string
           created_by?: string | null
           created_by_name?: string | null
@@ -3577,6 +3579,7 @@ export type Database = {
           clinical_protocol?: string
           complications_management?: string
           contraindications?: string
+          cover_image_path?: string | null
           created_at?: string
           created_by?: string | null
           created_by_name?: string | null

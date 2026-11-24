@@ -16,6 +16,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { ArticleContent } from "./ArticleContent";
 import { ResourceEditor } from "./ArticleResources";
+import { ArticleCoverField } from "./ArticleCoverField";
 import { ArticleHistory } from "./ArticleHistory";
 import { ArticleEngagement } from "./ArticleEngagement";
 import { KnowledgePicture } from "./KnowledgePicture";
@@ -25,7 +26,7 @@ import { patientFacts, type PatientFacts } from "@/lib/patientSummary";
 // patient_summary and patient_facts belong here, not only in the form: the save
 // payload is built from Object.keys(blank), so a field missing from this object
 // is silently dropped on every save.
-const blank = { service_id: "", category_id: "", title: "", summary: "", gender: "both", age_rule: "all_ages", min_age: null as number | null, max_age: null as number | null, is_critical: false, clinical_protocol: "", contraindications: "", pre_post_care: "", complications_management: "", sources: "", ai_generated: false, ai_change_summary: "", status: "draft", is_active: true, patient_summary: "", patient_facts: {} as PatientFacts };
+const blank = { service_id: "", category_id: "", title: "", summary: "", gender: "both", age_rule: "all_ages", min_age: null as number | null, max_age: null as number | null, is_critical: false, cover_image_path: null as string | null, clinical_protocol: "", contraindications: "", pre_post_care: "", complications_management: "", sources: "", ai_generated: false, ai_change_summary: "", status: "draft", is_active: true, patient_summary: "", patient_facts: {} as PatientFacts };
 /** Where the patient summary section lives, for `focus` to scroll to. */
 export const PATIENT_SUMMARY_SECTION_ID = "patient-summary-section";
 
@@ -122,6 +123,7 @@ export function ArticleEditor({ article, cloneFrom, serviceId, start, onClose }:
         <div className="space-y-1"><Label>Age eligibility</Label><Select value={form.age_rule} onValueChange={(age_rule) => setForm({ ...form, age_rule })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all_ages">All ages</SelectItem><SelectItem value="custom_range">Age range</SelectItem></SelectContent></Select></div>
       </div>
       {form.age_rule === "custom_range" && <div className="grid grid-cols-2 gap-4">{(["min_age", "max_age"] as const).map((key) => <div key={key}><Label htmlFor={key}>{key === "min_age" ? "Minimum age" : "Maximum age"}</Label><Input id={key} type="number" min={0} max={150} value={form[key] ?? ""} onChange={(e) => setForm({ ...form, [key]: e.target.value === "" ? null : Number(e.target.value) })} /></div>)}</div>}
+      {!patientOnly && <ArticleCoverField value={form.cover_image_path} onChange={(cover_image_path) => setForm({ ...form, cover_image_path })} group={group} onBusyChange={setBusy} />}
       <div className="flex flex-wrap gap-5"><Label className="flex items-center gap-2"><Switch checked={form.is_critical} onCheckedChange={(is_critical) => setForm({ ...form, is_critical })} />Critical safety alert</Label><Label className="flex items-center gap-2"><Switch checked={form.is_active} onCheckedChange={(is_active) => setForm({ ...form, is_active })} />Active</Label></div>
       <div className="flex flex-wrap gap-2 border-y py-3"><Button variant="outline" onClick={generate} disabled={busy || save.isPending}><Sparkles className="h-4 w-4 mr-2" />{form.clinical_protocol ? "AI Enrich & Review" : "Generate AI Draft"}</Button>{drafting && <Button variant="ghost" onClick={() => abort.current?.abort()}><Loader2 className="h-4 w-4 mr-2 animate-spin" />Stop</Button>}</div>
       {proposal ? <section className="space-y-4"><h2 className="font-semibold">Review AI suggestion</h2><p className="text-sm text-warning whitespace-pre-wrap">{proposal.ai_change_summary}</p><div className="grid md:grid-cols-2 gap-5"><div className="min-w-0"><h3 className="font-medium mb-3">Current article</h3><ArticleContent article={{ ...form, resources }} /></div><div className="min-w-0 border-l pl-4"><h3 className="font-medium mb-3">Proposed article · {proposal.title}</h3><ArticleContent article={proposal} /></div></div><div className="flex gap-2"><Button onClick={() => { const { resources: suggested, ...content } = proposal; setForm({ ...form, ...content, title: form.title, ai_generated: true, status: "draft" }); setResources([...resources, ...articleResources(suggested)].slice(0, 50)); setProposal(null); }}>Accept into draft</Button><Button variant="outline" onClick={() => setProposal(null)}>Discard suggestion</Button></div></section> : <>

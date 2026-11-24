@@ -94,3 +94,21 @@ export function knowledgeCoverPrompt(article: CoverSubject): string | null {
     ...COVER_RULES,
   ].filter(Boolean).join(" ");
 }
+
+/**
+ * What to say when Generate fails.
+ *
+ * A fetch that never completes rejects with a bare "Failed to fetch", which
+ * is what the clinic saw and what means nothing to them. The commonest cause
+ * is the function not being deployed yet - a missing Supabase function fails
+ * the CORS preflight, so the browser reports a network failure rather than
+ * the 404 underneath it. Anything the gateway actually said is worth showing
+ * as it is.
+ */
+export function coverErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  if (/failed to fetch|load failed|networkerror|fetch failed/i.test(raw)) {
+    return "Could not reach the cover picture service. It may not be deployed yet, or the connection dropped.";
+  }
+  return raw.trim() || "Could not make a picture.";
+}

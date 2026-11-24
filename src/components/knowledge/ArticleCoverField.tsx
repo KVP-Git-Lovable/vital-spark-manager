@@ -4,7 +4,7 @@ import { ImageIcon, Loader2, Sparkles, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { KNOWLEDGE_BUCKET } from "@/lib/knowledge";
-import { knowledgeCoverPrompt } from "@/lib/knowledgeCoverPrompt";
+import { coverErrorMessage, knowledgeCoverPrompt } from "@/lib/knowledgeCoverPrompt";
 import { streamImage } from "@/lib/knowledgeImageStream";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -113,7 +113,7 @@ export function ArticleCoverField({
     } catch (e) {
       setFrame(""); setFrameDone(false);
       if (!(e instanceof Error && e.name === "AbortError")) {
-        toast.error(e instanceof Error ? e.message : "Could not make a picture.");
+        toast.error(coverErrorMessage(e));
       }
     } finally {
       setDrafting(false); setBusy(false);

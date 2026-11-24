@@ -28,9 +28,9 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 const reply = (error: string, status: number) =>
   new Response(JSON.stringify({ error }), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-/** Kept word for word in step with src/lib/knowledgeCoverPrompt.ts, which is
+// Kept word for word in step with src/lib/knowledgeCoverPrompt.ts, which is
 // where they are explained and where a test asserts both copies agree. Two
-// copies of a safety rule is how one of them gets forgotten. */
+// copies of a safety rule is how one of them gets forgotten.
 const MAX_TITLE_CHARS = 160;
 const MAX_NAME_CHARS = 80;
 const MAX_SUMMARY_CHARS = 300;

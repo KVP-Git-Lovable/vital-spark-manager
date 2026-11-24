@@ -8,6 +8,7 @@ import {
   coverName,
   coverSummary,
   coverTitle,
+  coverErrorMessage,
   knowledgeCoverPrompt,
 } from "@/lib/knowledgeCoverPrompt";
 
@@ -189,6 +190,38 @@ describe("the edge function keeps the app's bargain", () => {
 
   it("asks for a landscape picture, which is the shape of the card banner", () => {
     expect(fn).toContain('size: "1536x1024"');
+  });
+});
+
+describe("what it says when Generate fails", () => {
+  it("explains a request that never arrived", () => {
+    // "Failed to fetch" is what the clinic saw. The commonest cause is the
+    // function not being deployed: a missing Supabase function fails the
+    // CORS preflight, so the browser reports a network failure rather than
+    // the 404 underneath it.
+    const said = coverErrorMessage(new TypeError("Failed to fetch"));
+    expect(said).toContain("Could not reach the cover picture service");
+    expect(said).not.toContain("Failed to fetch");
+  });
+
+  it("recognises the other browsers' wording for the same thing", () => {
+    for (const wording of ["Load failed", "NetworkError when attempting to fetch resource.", "fetch failed"]) {
+      expect(coverErrorMessage(new TypeError(wording))).toContain("Could not reach");
+    }
+  });
+
+  it("passes on what the gateway actually said", () => {
+    // A real answer - out of credits, refused - is worth showing as it is.
+    expect(coverErrorMessage(new Error("You have run out of AI credits."))).toBe("You have run out of AI credits.");
+  });
+
+  it("always says something", () => {
+    expect(coverErrorMessage(new Error("   "))).toBe("Could not make a picture.");
+    expect(coverErrorMessage(undefined)).toBe("Could not make a picture.");
+  });
+
+  it("is what the editor shows", () => {
+    expect(code(FIELD)).toContain("toast.error(coverErrorMessage(e))");
   });
 });
 

@@ -16,6 +16,9 @@ import { ImageCropDialog } from "@/components/shared/ImageCropDialog";
 import { displayDate } from "@/lib/dateInput";
 import { attachmentStoragePath } from "@/lib/attachmentPath";
 import { attachmentKind } from "@/lib/attachmentPreview";
+import { usePatientAttachments, type PatientAttachment } from "@/hooks/usePatientAttachments";
+// Re-exported where it has always lived, so nothing that imports it moves.
+export type { PatientAttachment };
 import { uploadFailureMessage, uploadSuccessMessage, type FailedUpload } from "@/lib/uploadSummary";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import {
@@ -45,15 +48,6 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
  */
 
 /** One row of procedure_attachments, as this list reads it. */
-export interface PatientAttachment {
-  id: string;
-  file_name: string | null;
-  file_url: string | null;
-  document_type: string | null;
-  notes: string | null;
-  created_at: string;
-}
-
 const DOCUMENT_TYPES = [
   "Prescription",
   "Consent Form",
@@ -150,20 +144,7 @@ export function PatientAttachments({
     setPan((p) => clampPan(p, next, frameSize()));
   };
 
-  const { data: attachments = [], refetch } = useQuery({
-    queryKey: ["patient-attachments", patientId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("procedure_attachments")
-        // The joined service is no longer read - see the list below.
-        .select("*")
-        .eq("patient_id", patientId!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as PatientAttachment[];
-    },
-    enabled: !!patientId,
-  });
+  const { data: attachments = [], refetch } = usePatientAttachments(patientId);
 
   /**
    * Put a mis-filed document in the right box.

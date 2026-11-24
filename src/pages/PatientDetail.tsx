@@ -49,6 +49,7 @@ import { MessageCircle } from "lucide-react";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
 import { PatientAttachments } from "@/components/patients/PatientAttachments";
+import { usePatientAttachments } from "@/hooks/usePatientAttachments";
 import { FamilyMembers } from "@/components/patients/FamilyMembers";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
@@ -470,19 +471,7 @@ const PatientDetail = () => {
   // three cost one request between them rather than three.
   const feedbackCount = usePatientFeedback(id).data?.rows.length ?? 0;
 
-  const { data: attachments = [] } = useQuery({
-    queryKey: ["patient-attachments", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("procedure_attachments")
-        .select("*, procedures(service_name)")
-        .eq("patient_id", id!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
+  const { data: attachments = [] } = usePatientAttachments(id);
 
   const { data: surveyResponses = [] } = useQuery({
     queryKey: ["patient-surveys", id],

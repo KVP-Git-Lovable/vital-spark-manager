@@ -102,6 +102,9 @@ import { investigationText } from "@/lib/investigationText";
 import { displayDate } from "@/lib/dateInput";
 import { appointmentPatientName, appointmentPatientIsVip } from "@/lib/appointmentPatientName";
 import { VipBadge } from "@/components/shared/VipBadge";
+import { useAppointmentFeedback, useAppointmentStickyNotes, useAppointmentSurveyResponses } from "@/hooks/useAppointmentTabData";
+import { usePatientAttachments } from "@/hooks/usePatientAttachments";
+import { tabLabel } from "@/lib/appointmentTabCounts";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -137,19 +140,7 @@ function FeedbackTabContent({
   setFeedbackSubmitting: (v: boolean) => void;
   queryClient: any;
 }) {
-  const { data: existingFeedback, isLoading } = useQuery({
-    queryKey: ["patient-feedback", appointmentId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("patient_feedback")
-        .select("*")
-        .eq("appointment_id", appointmentId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!appointmentId,
-  });
+  const { data: existingFeedback, isLoading } = useAppointmentFeedback(appointmentId);
 
   const { questions, isLoading: questionsLoading } = useFeedbackQuestions();
   const [answers, setAnswers] = useState<AnswerMap>({});
@@ -1016,6 +1007,21 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     navigate("/billing?newInvoice=1");
   };
 
+  /**
+   * The four counts whose lists live inside the tab bodies.
+   *
+   * Through the same hooks those bodies use, so this is the SAME request
+   * rather than a second one - and, more importantly, the same SELECT. Only
+   * the open tab's body is mounted, so on a sheet opened at Details these are
+   * the queries that fill the cache; a lighter count query here would have
+   * handed Survey and Attachments rows with columns missing when they were
+   * opened afterwards.
+   */
+  const { data: tabFeedback } = useAppointmentFeedback(appointmentId);
+  const { data: tabSurveys = [] } = useAppointmentSurveyResponses(appointmentId, appointment?.patient_id);
+  const { data: tabAttachments = [] } = usePatientAttachments(appointment?.patient_id);
+  const { data: tabNotes = [] } = useAppointmentStickyNotes(appointmentId);
+
   const { data: photos = [] } = useQuery({
     queryKey: ["patient-photos", "appointment", appointmentId, appointment?.patient_id],
     queryFn: async () => {
@@ -1457,17 +1463,17 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="w-full justify-start rounded-none border-b px-6 bg-transparent h-auto p-0">
                   <TabsTrigger value="details" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Details</TabsTrigger>
-                  <TabsTrigger value="procedures" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Prescriptions</TabsTrigger>
-                  <TabsTrigger value="prev-appointments" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Previous Appointments</TabsTrigger>
-                  <TabsTrigger value="prev-procedures" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Previous Prescriptions</TabsTrigger>
+                  <TabsTrigger value="procedures" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">{tabLabel("Prescriptions", procedures.length)}</TabsTrigger>
+                  <TabsTrigger value="prev-appointments" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">{tabLabel("Previous Appointments", previousAppointments.length)}</TabsTrigger>
+                  <TabsTrigger value="prev-procedures" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">{tabLabel("Previous Prescriptions", previousProcedures.length)}</TabsTrigger>
                   {canSeeBilling && (
-                  <TabsTrigger value="billing" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Billing</TabsTrigger>
+                  <TabsTrigger value="billing" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">{tabLabel("Billing", invoices.length)}</TabsTrigger>
                   )}
-                  <TabsTrigger value="photos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Photos</TabsTrigger>
-                  <TabsTrigger value="feedback" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Feedback</TabsTrigger>
-                  <TabsTrigger value="survey" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Survey</TabsTrigger>
-                  <TabsTrigger value="attachments" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Attachments</TabsTrigger>
-                  <TabsTrigger value="notes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Notes</TabsTrigger>
+                  <TabsTrigger value="photos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">{tabLabel("Photos", photos.length)}</TabsTrigger>
+                  <TabsTrigger value="feedback" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">{tabLabel("Feedback", tabFeedback ? 1 : 0)}</TabsTrigger>
+                  <TabsTrigger value="survey" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">{tabLabel("Survey", tabSurveys.length)}</TabsTrigger>
+                  <TabsTrigger value="attachments" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">{tabLabel("Attachments", tabAttachments.length)}</TabsTrigger>
+                  <TabsTrigger value="notes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">{tabLabel("Notes", tabNotes.length)}</TabsTrigger>
                   <TabsTrigger value="ai-repo" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">AI Repository</TabsTrigger>
                 </TabsList>
 

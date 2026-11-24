@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useUserNames } from "@/lib/history";
 import { stickyNoteOwner, type StickyNoteOwner } from "@/lib/stickyNoteOwner";
+import { useStickyNotes } from "@/hooks/useAppointmentTabData";
 
 /**
  * A note being composed before its procedure exists. `key` is a stable local id -
@@ -126,21 +127,7 @@ export function StickyNotes({ procedureId, appointmentId, notes, onNotesChange, 
   const [editingTitle, setEditingTitle] = useState("");
   const [editingContent, setEditingContent] = useState("");
 
-  const { data: stickyNotes = [], refetch: refetchStickyNotes } = useQuery({
-    // Keyed by table as well as id: a procedure and an appointment could
-    // otherwise share a cache entry on equal uuids.
-    queryKey: ["sticky-notes", owner?.table, owner?.id],
-    queryFn: async () => {
-      if (!owner) return [];
-      const { data, error } = await notesTable(owner.table)
-        .select("*")
-        .eq(notesColumn(owner.column), owner.id)
-        .order("updated_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!owner,
-  });
+  const { data: stickyNotes = [], refetch: refetchStickyNotes } = useStickyNotes(owner);
 
   const noteUserIds = (stickyNotes as StickyNoteRow[]).flatMap((n) => [n.created_by, n.updated_by]);
   const { data: noteUserNames = {} } = useUserNames(noteUserIds);

@@ -15,6 +15,7 @@ import { approveSurveyResponse } from "@/lib/surveyApproval";
 import { Link } from "react-router-dom";
 import { FileText } from "lucide-react";
 import { SurveyAuditInfo } from "./SurveyAuditInfo";
+import { useAppointmentSurveyResponses } from "@/hooks/useAppointmentTabData";
 
 interface Props {
   appointmentId: string;
@@ -26,24 +27,7 @@ export function SurveyRecommendations({ appointmentId, patientId }: Props) {
   const [drNotes, setDrNotes] = useState("");
   const [reviewAction, setReviewAction] = useState<string | null>(null);
 
-  const { data: responses = [], isLoading } = useQuery({
-    queryKey: ["survey-responses", appointmentId, patientId],
-    queryFn: async () => {
-      let query = supabase
-        .from("survey_responses")
-        .select("*, survey_templates(name), staff(first_name, last_name)")
-        .order("created_at", { ascending: false });
-      if (patientId) {
-        query = query.or(`appointment_id.eq.${appointmentId},patient_id.eq.${patientId}`);
-      } else {
-        query = query.eq("appointment_id", appointmentId);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!appointmentId,
-  });
+  const { data: responses = [], isLoading } = useAppointmentSurveyResponses(appointmentId, patientId);
 
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff-list"],

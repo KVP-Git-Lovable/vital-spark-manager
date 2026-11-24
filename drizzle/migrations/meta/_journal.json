@@ -260,6 +260,13 @@
       "when": 1795518518252,
       "tag": "0036_lock_down_suppression_and_reference_reads",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795520723371,
+      "tag": "0037_restrict_trash_purge",
+      "breakpoints": true
     }
   ]
 }

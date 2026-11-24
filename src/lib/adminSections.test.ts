@@ -58,8 +58,12 @@ describe("nothing was lost when the sidebar group collapsed", () => {
     }
   });
 
-  it("keeps the three Admin Home already had", () => {
-    for (const url of ["/knowledge", "/admin/photo-fingerprints", "/admin/visits-to-review"]) {
+  it("keeps the two Admin Home already had", () => {
+    // There were three. Visits to Review was removed on purpose on 24 Nov
+    // 2026, at the clinic's request, along with its route and its page -
+    // which is the one case this guard is not meant to catch. The other two
+    // still have to be here.
+    for (const url of ["/knowledge", "/admin/photo-fingerprints"]) {
       expect(ADMIN_LINKS.some((l) => l.url === url), `${url} is no longer reachable`).toBe(true);
     }
   });

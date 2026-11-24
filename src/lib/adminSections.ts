@@ -2,7 +2,6 @@ import {
   AlertTriangle,
   BookOpen,
   CalendarCheck,
-  ClipboardList,
   Coins,
   CopyCheck,
   History,
@@ -25,10 +24,12 @@ import { canViewModule } from "@/lib/staffAccess";
  * Admin Home had never heard of, while Admin Home offered Knowledge Articles,
  * Photo Fingerprints and Visits to Review, which the sidebar did not. Nobody
  * did that on purpose - it is what two hand-maintained copies of a list do.
+ * (Visits to Review has since been removed outright, at the clinic's request.)
  *
  * So the sidebar's Admin group is now one entry pointing at Admin Home, and
  * this is the list behind both of them. Adding an admin page means adding it
- * here, once.
+ * here, once - and removing one means removing its route in App.tsx with it,
+ * which a test in adminSections.test.ts insists on.
  *
  * ── The moduleKey matters ──
  *
@@ -156,14 +157,6 @@ export const ADMIN_LINKS: AdminLink[] = [
     description: "Let Photos search find a patient from a copy of a photo already on their record.",
     url: "/admin/photo-fingerprints",
     icon: ImageIcon,
-    group: "Records & retention",
-    moduleKey: "settings",
-  },
-  {
-    title: "Visits to Review",
-    description: "Past visits marked Completed with no bill and no procedure recorded against them.",
-    url: "/admin/visits-to-review",
-    icon: ClipboardList,
     group: "Records & retention",
     moduleKey: "settings",
   },

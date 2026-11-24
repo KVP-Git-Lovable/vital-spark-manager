@@ -107,7 +107,6 @@ const FeedbackRcaDetail = lazyWithReload(() => import("./pages/FeedbackRcaDetail
 const KnowledgeArticleDetail = lazyWithReload(() => import("./pages/KnowledgeArticleDetail"));
 const Attendance = lazyWithReload(() => import("./pages/Attendance"));
 const AttendanceAdmin = lazyWithReload(() => import("./pages/admin/AttendanceAdmin"));
-const VisitsNeedingReview = lazyWithReload(() => import("./pages/admin/VisitsNeedingReview"));
 const CurrencyBilling = lazyWithReload(() => import("./pages/admin/CurrencyBilling"));
 const PortalModules = lazyWithReload(() => import("./pages/admin/PortalModules"));
 const FeedbackSettings = lazyWithReload(() => import("./pages/admin/FeedbackSettings"));
@@ -297,7 +296,6 @@ const App = () => (
                     <Route path="/patients/:id" element={<ProtectedRoute moduleKey="patients"><PatientDetail /></ProtectedRoute>} />
                     <Route path="/leave" element={<ProtectedRoute moduleKey="leave"><LeaveManagement /></ProtectedRoute>} />
                     <Route path="/admin/attendance" element={<ProtectedRoute moduleKey="attendance_admin"><AttendanceAdmin /></ProtectedRoute>} />
-                    <Route path="/admin/visits-to-review" element={<ProtectedRoute moduleKey="settings"><VisitsNeedingReview /></ProtectedRoute>} />
                     <Route path="/appointments" element={<ProtectedRoute moduleKey="appointments"><Appointments /></ProtectedRoute>} />
                     <Route path="/appointments/:id" element={<ProtectedRoute moduleKey="appointments"><AppointmentDetail /></ProtectedRoute>} />
                     <Route path="/services" element={<ProtectedRoute moduleKey="services"><Services /></ProtectedRoute>} />

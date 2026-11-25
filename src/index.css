@@ -57,6 +57,26 @@
     --gold: 42 65% 55%;
     --gold-foreground: 210 40% 10%;
 
+    /* A scoring scale, drawn as one strip from worst to best.
+
+       Its own three stops rather than --destructive/--warning/--success,
+       because those are read against a page: --destructive goes almost black
+       in dark mode, which on a ramp would read as "nothing there" instead of
+       "this end is bad". These stay vivid in both themes, which is what lets
+       one ink colour stay legible across the whole strip - the alternative
+       being a per-segment text rule that breaks the moment a clinic configures
+       a scale of a different length.
+
+       The lightness of each stop is set by the numeral that has to sit on it:
+       one ink across the whole strip means no segment can be the dark one, and
+       the worst end is the one that nearly was. Measured, not eyeballed - the
+       numbers are 14px semibold, so the bar is 4.5:1, and the red end reads
+       4.7:1 in both themes. */
+    --scale-low: 2 78% 58%;
+    --scale-mid: 42 95% 55%;
+    --scale-high: 150 58% 42%;
+    --scale-ink: 210 45% 8%;
+
     /* VIP: a patient the front desk must recognise on arrival. Built from the
        gold above so it is one colour story, and kept well away from the
        engagement tiers (violet/amber/slate), which mean something else. */
@@ -122,6 +142,15 @@
     --glass-border: 210 15% 100% / 0.1;
     --glass-shadow: 0 12px 32px -22px hsl(210 80% 2% / 0.7), 0 1px 2px hsl(210 80% 2% / 0.4);
     --glass-shadow-hover: 0 18px 40px -24px hsl(174 62% 30% / 0.35), 0 2px 8px hsl(210 80% 2% / 0.45);
+
+    /* Held down a little against a dark page, which makes a saturated strip
+       glare. The ink stays dark on purpose: the stops stay light enough to
+       carry it, and a scale that inverted its numerals between themes would
+       be the only control in the app that did. */
+    --scale-low: 2 70% 58%;
+    --scale-mid: 42 88% 52%;
+    --scale-high: 150 52% 40%;
+    --scale-ink: 210 45% 8%;
   }
 }
 

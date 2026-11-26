@@ -35,11 +35,14 @@ import { MyDayCard } from "@/components/attendance/MyDayCard";
 import { MyDashboard } from "@/components/dashboard/MyDashboard";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardScope } from "@/lib/dashboardScope";
+import {
+  DASH_ROW_CEILING, fetchDashboardAppointments, fetchDashboardFeedback, fetchDashboardInvoices,
+} from "@/lib/dashboardRows";
 
 
-// Data-heavy panels are capped so a large date range can never turn into a
-// full-table scan that the database cancels (statement timeout).
-const DASH_ROW_CAP = 5000;
+// The appointment, invoice and feedback reads are paged in src/lib/dashboardRows.ts.
+// They used to end in .limit(5000), which Supabase quietly served as 1000 -
+// see that file for what it did to the quarter's numbers.
 const NEW_PATIENTS_CAP = 500;
 
 const statusColors: Record<string, string> = {
@@ -189,19 +192,9 @@ const ClinicDashboard = () => {
   // APPOINTMENT_QUERY_KEYS for why mounting the hook was not enough on its own.
   useLiveAppointments();
 
-  const { data: appointments = [], isError: apptError, isLoading: apptLoading, refetch: refetchAppts } = useQuery({
+  const { data: apptPage, isError: apptError, isLoading: apptLoading, refetch: refetchAppts } = useQuery({
     queryKey: ["dashboard-appointments", startISO, endISO],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("*, patients(first_name, last_name)")
-        .gte("start_time", startISO)
-        .lte("start_time", endISO)
-        .order("start_time")
-        .limit(DASH_ROW_CAP);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchDashboardAppointments(startISO, endISO),
     // A socket event missed while this screen was closed is corrected the
     // moment it is opened. Scoped here rather than changed globally: the
     // app-wide staleTime is what stopped every query re-running on focus.
@@ -211,34 +204,26 @@ const ClinicDashboard = () => {
   // Patient feedback over the same window as every other card. It replaced
   // Revenue by Primary Concern, which was one "Unspecified" bar and always
   // would be: the concern is filled on 7 of 56,763 appointments.
-  const { data: feedback = [] } = useQuery({
+  const { data: feedbackPage } = useQuery({
     queryKey: ["dashboard-feedback", startISO, endISO],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("patient_feedback")
-        .select("nps_score, service_rating")
-        .gte("created_at", startISO)
-        .lte("created_at", endISO)
-        .limit(DASH_ROW_CAP);
-      if (error) throw error;
-      return data || [];
-    },
+    queryFn: () => fetchDashboardFeedback(startISO, endISO),
   });
 
-  const { data: invoices = [], isError: invoiceError, isLoading: invoiceLoading, refetch: refetchInvoices } = useQuery({
+  const { data: invoicePage, isError: invoiceError, isLoading: invoiceLoading, refetch: refetchInvoices } = useQuery({
     queryKey: ["dashboard-invoices", startISO, endISO],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("*")
-        .gte("created_at", startISO)
-        .lte("created_at", endISO)
-        .order("created_at", { ascending: false })
-        .limit(DASH_ROW_CAP);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchDashboardInvoices(startISO, endISO),
   });
+
+  /* Held by identity, not rebuilt each render: every chart below hangs off
+     these in a useMemo, and a fresh [] each time would recompute the lot on
+     every keystroke elsewhere on the page. */
+  const appointments = useMemo(() => apptPage?.rows ?? [], [apptPage]);
+  const invoices = useMemo(() => invoicePage?.rows ?? [], [invoicePage]);
+  const feedback = useMemo(() => feedbackPage?.rows ?? [], [feedbackPage]);
+  /* The window holds more rows than one view will page through. Said out
+     loud, because a number quietly worked out from part of the range is the
+     defect this whole path was rewritten for. */
+  const partialRange = !!apptPage?.truncated || !!invoicePage?.truncated || !!feedbackPage?.truncated;
 
   const { data: pendingInvoices = [] } = useQuery({
     queryKey: ["dashboard-pending-invoices"],
@@ -623,6 +608,19 @@ const ClinicDashboard = () => {
           >
             Retry
           </Button>
+        </div>
+      )}
+
+      {/* The numbers below cover part of the range, and say so. The whole
+          point of this path is that a partial answer is never presented as
+          the answer. */}
+      {partialRange && (
+        <div className="mb-4 rounded-xl border border-warning/40 bg-warning/5 px-4 py-3">
+          <span className="text-sm text-warning-foreground">
+            This range holds more than {DASH_ROW_CEILING.toLocaleString("en-IN")} records, so every
+            figure and chart below covers only the first {DASH_ROW_CEILING.toLocaleString("en-IN")}.
+            Choose a shorter range for the full picture.
+          </span>
         </div>
       )}
 

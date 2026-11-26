@@ -16,6 +16,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3, Download, ExternalLink, FileText, Search, X } from "lucide-react";
+import { DASH_PAGE_SIZE, DASH_ROW_CEILING } from "@/lib/dashboardRows";
+import { fetchAll } from "@/lib/supabasePaginate";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer,
   Tooltip, XAxis, YAxis, Line, LineChart,
@@ -147,39 +149,42 @@ export default function DashboardExplore() {
   const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["explore", kind, fromISO, toISO],
     queryFn: async () => {
+      // Paged, not .limit(5000): Supabase serves min(limit, max-rows) and
+      // max-rows is 1000, so the cap below used to stop this list at 1000
+      // rows while the card that opened it counted something else entirely.
       if (kind === "appointments") {
         // The bills come with the rows so this screen can answer the same
         // question the Billed Appointments card asked. Cancelled ones are
         // dropped below, exactly as the dashboard drops them.
-        let q = supabase.from("appointments").select("*, patients(first_name, last_name, phone), invoices(id, status)").order("start_time", { ascending: false }).limit(5000);
-        if (fromISO) q = q.gte("start_time", fromISO);
-        if (toISO) q = q.lte("start_time", toISO);
-        const { data, error } = await q;
-        if (error) throw error;
-        return data || [];
+        return await fetchAll<Record<string, unknown>>((lo, hi) => {
+          let q = supabase.from("appointments").select("*, patients(first_name, last_name, phone), invoices(id, status)").order("start_time", { ascending: false }).range(lo, hi);
+          if (fromISO) q = q.gte("start_time", fromISO);
+          if (toISO) q = q.lte("start_time", toISO);
+          return q;
+        }, DASH_PAGE_SIZE, DASH_ROW_CEILING);
       }
       if (kind === "invoices") {
-        let q = supabase
-          .from("invoices")
-          .select("*, appointments(problem_area_ids)")
-          // This screen is the Dashboard's drill-down, and the Dashboard drops
-          // cancelled bills before it totals anything. Including them here made
-          // the detail disagree with the number that was clicked to reach it.
-          .neq("status", "Cancelled")
-          .order("created_at", { ascending: false })
-          .limit(5000);
+        return await fetchAll<Record<string, unknown>>((lo, hi) => {
+          let q = supabase
+            .from("invoices")
+            .select("*, appointments(problem_area_ids)")
+            // This screen is the Dashboard's drill-down, and the Dashboard drops
+            // cancelled bills before it totals anything. Including them here made
+            // the detail disagree with the number that was clicked to reach it.
+            .neq("status", "Cancelled")
+            .order("created_at", { ascending: false })
+            .range(lo, hi);
+          if (fromISO) q = q.gte("created_at", fromISO);
+          if (toISO) q = q.lte("created_at", toISO);
+          return q;
+        }, DASH_PAGE_SIZE, DASH_ROW_CEILING);
+      }
+      return await fetchAll<Record<string, unknown>>((lo, hi) => {
+        let q = supabase.from("patients").select("*").order("created_at", { ascending: false }).range(lo, hi);
         if (fromISO) q = q.gte("created_at", fromISO);
         if (toISO) q = q.lte("created_at", toISO);
-        const { data, error } = await q;
-        if (error) throw error;
-        return data || [];
-      }
-      let q = supabase.from("patients").select("*").order("created_at", { ascending: false }).limit(5000);
-      if (fromISO) q = q.gte("created_at", fromISO);
-      if (toISO) q = q.lte("created_at", toISO);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data || [];
+        return q;
+      }, DASH_PAGE_SIZE, DASH_ROW_CEILING);
     },
   });
 

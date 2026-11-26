@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { DateInput } from "@/components/shared/DateInput";
 import { displayDate } from "@/lib/dateInput";
+import { HALF_SESSIONS, canBeHalfDay, halfSessionLabel, leaveDayLabel, leaveDays, type HalfSession } from "@/lib/leaveDays";
 import { Plus, Search, Calendar, Loader2, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,7 @@ interface MyLeaveApplication {
   start_date: string;
   end_date: string;
   days: number;
+  half_session?: string | null;
   reason: string | null;
   status: string;
   leave_types?: { name?: string | null } | null;
@@ -143,6 +145,7 @@ const LeaveManagement = () => {
   const [appLeaveTypeId, setAppLeaveTypeId] = useState("");
   const [appStartDate, setAppStartDate] = useState("");
   const [appEndDate, setAppEndDate] = useState("");
+  const [appHalfSession, setAppHalfSession] = useState<HalfSession | null>(null);
   const [appReason, setAppReason] = useState("");
 
   const { data: leaveTypes = [], isLoading: ltLoading } = useQuery({
@@ -284,9 +287,10 @@ const LeaveManagement = () => {
   const applyLeave = useMutation({
     mutationFn: async () => {
       if (!appStartDate || !appEndDate) throw new Error("Select dates");
-      const start = new Date(appStartDate);
-      const end = new Date(appEndDate);
-      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      // Half a day only counts as half when it is one date; leaveDays drops a
+      // session left over from a range rather than charging 0.5 for a week.
+      const half = canBeHalfDay(appStartDate, appEndDate) ? appHalfSession : null;
+      const days = leaveDays(appStartDate, appEndDate, half);
       if (days <= 0) throw new Error("End date must be after start date");
 
       // An admin may apply on somebody's behalf, which is the flow this
@@ -300,6 +304,7 @@ const LeaveManagement = () => {
         start_date: appStartDate,
         end_date: appEndDate,
         days,
+        half_session: half,
         reason: appReason || null,
       });
       if (error) throw error;
@@ -307,7 +312,7 @@ const LeaveManagement = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leave-applications"] });
       toast.success("Leave applied");
-      setAppStaffId(""); setAppLeaveTypeId(""); setAppStartDate(""); setAppEndDate(""); setAppReason(""); setApplyOpen(false);
+      setAppStaffId(""); setAppLeaveTypeId(""); setAppStartDate(""); setAppEndDate(""); setAppHalfSession(null); setAppReason(""); setApplyOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -426,16 +431,40 @@ const LeaveManagement = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Start Date *</Label>
-                    <DateInput className="mt-1.5" value={appStartDate} onChange={(isoDate) => setAppStartDate(isoDate)} />
+                    <DateInput withCalendar className="mt-1.5" value={appStartDate} onChange={(isoDate) => { setAppStartDate(isoDate); setAppHalfSession(null); }} />
                   </div>
                   <div>
                     <Label>End Date *</Label>
-                    <DateInput className="mt-1.5" value={appEndDate} onChange={(isoDate) => setAppEndDate(isoDate)} />
+                    <DateInput withCalendar className="mt-1.5" value={appEndDate} onChange={(isoDate) => { setAppEndDate(isoDate); setAppHalfSession(null); }} />
                   </div>
                 </div>
+
+                {/* Half a day is only offered on a single date, which is the
+                    only shape it has a meaning in. Changing either date clears
+                    it, so a morning off cannot quietly become a week. */}
+                {canBeHalfDay(appStartDate, appEndDate) && (
+                  <div>
+                    <Label>Duration</Label>
+                    <div className="mt-1.5 grid grid-cols-3 gap-2">
+                      {[{ value: null, label: "Full day" }, ...HALF_SESSIONS].map((option) => (
+                        <Button
+                          key={option.label}
+                          type="button"
+                          size="sm"
+                          variant={appHalfSession === option.value ? "default" : "outline"}
+                          aria-pressed={appHalfSession === option.value}
+                          onClick={() => setAppHalfSession(option.value as HalfSession | null)}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {appStartDate && appEndDate && (
                   <div className="bg-muted/50 rounded-lg p-2 text-xs text-muted-foreground text-center">
-                    {Math.max(1, Math.ceil((new Date(appEndDate).getTime() - new Date(appStartDate).getTime()) / (1000 * 60 * 60 * 24)) + 1)} day(s)
+                    {Math.max(0.5, leaveDays(appStartDate, appEndDate, appHalfSession))} day(s){appHalfSession ? ` — ${halfSessionLabel(appHalfSession)}` : ""}
                   </div>
                 )}
                 <div>
@@ -495,7 +524,7 @@ const LeaveManagement = () => {
                     )}
                     <div>
                       <Label>Day *</Label>
-                      <DateInput className="mt-1.5" value={regDate} onChange={(iso) => setRegDate(iso)} />
+                      <DateInput withCalendar className="mt-1.5" value={regDate} onChange={(iso) => setRegDate(iso)} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -607,7 +636,7 @@ const LeaveManagement = () => {
                       <TableCell className="whitespace-nowrap">
                         {displayDate(a.start_date)} – {displayDate(a.end_date)}
                       </TableCell>
-                      <TableCell>{a.days}</TableCell>
+                      <TableCell>{leaveDayLabel(a.days, a.half_session)}</TableCell>
                       <TableCell className="max-w-xs truncate">{a.reason || "—"}</TableCell>
                       <TableCell>
                         <Badge className={statusStyles[a.status] || ""}>{a.status}</Badge>
@@ -713,7 +742,7 @@ const LeaveManagement = () => {
                     <TableCell className="text-sm">
                       {displayDate(app.start_date)} — {displayDate(app.end_date)}
                     </TableCell>
-                    <TableCell className="text-sm font-medium">{app.days}</TableCell>
+                    <TableCell className="text-sm font-medium">{leaveDayLabel(app.days, app.half_session)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground truncate max-w-[150px]">{app.reason || "—"}</TableCell>
                     <TableCell>
                       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[app.status] || ""}`}>{app.status}</span>

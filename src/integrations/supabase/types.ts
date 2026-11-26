@@ -3705,6 +3705,7 @@ export type Database = {
           created_at: string
           days: number
           end_date: string
+          half_session: string | null
           id: string
           leave_type_id: string
           reason: string | null
@@ -3718,6 +3719,7 @@ export type Database = {
           created_at?: string
           days?: number
           end_date: string
+          half_session?: string | null
           id?: string
           leave_type_id: string
           reason?: string | null
@@ -3731,6 +3733,7 @@ export type Database = {
           created_at?: string
           days?: number
           end_date?: string
+          half_session?: string | null
           id?: string
           leave_type_id?: string
           reason?: string | null

@@ -97,6 +97,19 @@ describe("writing one down", () => {
     });
   });
 
+  it("files it under the day the calendar is showing", async () => {
+    // The dot on the calendar comes from this: a note saved with no day
+    // would vanish from the month it belongs to.
+    panel();
+    type("New note", "Vindhya ma'am on leave");
+    fireEvent.click(screen.getByRole("button", { name: "Save Note" }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date());
+    expect(calls[0].values).toMatchObject({ note_date: today });
+  });
+
   it("will not save a blank line in the book", () => {
     panel();
     type("New note", "    ");

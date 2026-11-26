@@ -913,6 +913,8 @@ export type Database = {
           deleted_by: string | null
           deleted_by_name: string | null
           id: string
+          note_date: string | null
+          note_end_date: string | null
           updated_at: string
           updated_by: string | null
           updated_by_name: string | null
@@ -926,6 +928,8 @@ export type Database = {
           deleted_by?: string | null
           deleted_by_name?: string | null
           id?: string
+          note_date?: string | null
+          note_end_date?: string | null
           updated_at?: string
           updated_by?: string | null
           updated_by_name?: string | null
@@ -939,6 +943,8 @@ export type Database = {
           deleted_by?: string | null
           deleted_by_name?: string | null
           id?: string
+          note_date?: string | null
+          note_end_date?: string | null
           updated_at?: string
           updated_by?: string | null
           updated_by_name?: string | null

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, NotebookPen, Pencil, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { CalendarDays, ChevronDown, NotebookPen, Pencil, RotateCcw, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +20,9 @@ import {
   noteWasEdited,
   type ClinicNote,
 } from "@/lib/clinicNotes";
+import { datesWithNotes, dayFromISO, isoFromDay, noteCoversDate, noteDateLabel } from "@/lib/noteDates";
+import { ClinicNotesCalendar } from "@/components/layout/ClinicNotesCalendar";
+import { isoToIst } from "@/lib/istTime";
 
 /**
  * The clinic's shared notebook, beside the bell.
@@ -34,7 +37,10 @@ import {
  */
 
 const COLUMNS =
-  "id, body, created_at, created_by_name, updated_at, updated_by_name, deleted_at, deleted_by_name";
+  "id, body, note_date, note_end_date, created_at, created_by_name, updated_at, updated_by_name, deleted_at, deleted_by_name";
+
+/** Today, by the clinic's clock rather than the browser's. */
+const istToday = (): string => isoToIst(new Date().toISOString())?.date ?? isoFromDay(new Date());
 
 export function ClinicNotes() {
   const qc = useQueryClient();
@@ -45,6 +51,8 @@ export function ClinicNotes() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [showDeleted, setShowDeleted] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(istToday);
+  const [month, setMonth] = useState(() => dayFromISO(istToday()));
 
   const authorName = staffProfile
     ? `${staffProfile.firstName} ${staffProfile.lastName}`.trim()
@@ -70,6 +78,7 @@ export function ClinicNotes() {
     mutationFn: async (body: string) => {
       const { error } = await supabase.from("clinic_notes").insert({
         body,
+        note_date: selectedDate,
         created_by: user?.id ?? null,
         created_by_name: authorName,
       });
@@ -121,7 +130,94 @@ export function ClinicNotes() {
     [notes, query],
   );
   const removed = useMemo(() => deletedNotes(notes), [notes]);
+
+  const searching = query.trim().length > 0;
+  /* A dot under a day that carries a note, including every day in between
+     for one that spans them - somebody opening the 27th has to see that a
+     doctor is away from the 26th to the 28th. */
+  const marked = useMemo(() => datesWithNotes(liveNotes(notes)), [notes]);
+  const onSelectedDay = useMemo(
+    () => live.filter((n) => noteCoversDate(n, selectedDate)),
+    [live, selectedDate],
+  );
+  /* Notes written before a note carried its day, and anything the clinic
+     chooses not to date. Shown rather than hidden: losing one is the thing
+     that must not happen. */
+  const undated = useMemo(() => live.filter((n) => !n.note_date), [live]);
   const busy = addNote.isPending || editNote.isPending || deleteNote.isPending || restoreNote.isPending;
+
+  /** One note, wherever it is being shown. */
+  const noteRow = (note: ClinicNote, withDate = false) => (
+    <div key={note.id} className="border-b px-4 py-3 last:border-b-0 hover:bg-muted/30">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] text-muted-foreground">
+          {noteStamp(note.created_at)}
+          {note.created_by_name ? ` · ${note.created_by_name}` : ""}
+          {noteWasEdited(note) ? " · edited" : ""}
+        </p>
+        {editingId !== note.id && (
+          <div className="flex shrink-0 gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              aria-label="Edit note"
+              disabled={busy}
+              onClick={() => { setEditingId(note.id); setEditDraft(note.body); }}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-destructive hover:text-destructive"
+              aria-label="Delete note"
+              disabled={busy}
+              onClick={() => deleteNote.mutate(note.id)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Which day it is about, when that is not the day being looked at -
+          searching across months, or a note that runs over several days. */}
+      {withDate && note.note_date && (
+        <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+          <CalendarDays className="h-3 w-3" />
+          {noteDateLabel(note.note_date, note.note_end_date)}
+        </p>
+      )}
+
+      {editingId === note.id ? (
+        <div className="mt-2 space-y-2">
+          <Textarea
+            rows={3}
+            aria-label="Edit note"
+            value={editDraft}
+            disabled={busy}
+            onChange={(e) => setEditDraft(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              disabled={noteBodyIsEmpty(editDraft) || busy}
+              onClick={() => editNote.mutate({ id: note.id, body: cleanNoteBody(editDraft) })}
+            >
+              Save
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditingId(null)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        // Rough notes are typed with line breaks, and they are kept.
+        <p className="mt-1 whitespace-pre-wrap break-words text-sm">{note.body}</p>
+      )}
+    </div>
+  );
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -162,11 +258,49 @@ export function ClinicNotes() {
           )}
         </div>
 
-        {/* Writing a new one, always at the top - the open page of the book. */}
+        {/* The month, with a dot under every day that carries a note. Hidden
+            while searching, where the answer is "which days", not "this day". */}
+        {!searching && (
+          <div className="border-b">
+            <ClinicNotesCalendar
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+              month={month}
+              onMonthChange={setMonth}
+              markedDates={marked}
+            />
+            <div className="flex items-center justify-between gap-2 px-4 pb-2">
+              <p className="min-w-0 truncate text-sm font-semibold">
+                {dayFromISO(selectedDate).toLocaleDateString("en-GB", {
+                  weekday: "long", day: "numeric", month: "long",
+                })}
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  {onSelectedDay.length === 0
+                    ? "no notes"
+                    : `${onSelectedDay.length} note${onSelectedDay.length === 1 ? "" : "s"}`}
+                </span>
+              </p>
+              {selectedDate !== istToday() && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 shrink-0 px-2 text-xs"
+                  onClick={() => { setSelectedDate(istToday()); setMonth(dayFromISO(istToday())); }}
+                >
+                  Today
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Writing a new one, always at the top - the open page of the book.
+            It is written against the day chosen above, which is what puts the
+            dot on it. */}
         <div className="space-y-2 border-b px-4 py-3">
           <Textarea
             rows={3}
-            placeholder="Write a note…"
+            placeholder={searching ? "Write a note…" : `Write a note for ${noteDateLabel(selectedDate)}…`}
             aria-label="New note"
             value={draft}
             disabled={busy}
@@ -190,68 +324,30 @@ export function ClinicNotes() {
             </p>
           )}
 
-          {live.map((note) => (
-            <div key={note.id} className="border-b px-4 py-3 last:border-b-0">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-[11px] text-muted-foreground">
-                  {noteStamp(note.created_at)}
-                  {note.created_by_name ? ` · ${note.created_by_name}` : ""}
-                  {noteWasEdited(note) ? " · edited" : ""}
-                </p>
-                {editingId !== note.id && (
-                  <div className="flex shrink-0 gap-0.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      aria-label="Edit note"
-                      disabled={busy}
-                      onClick={() => { setEditingId(note.id); setEditDraft(note.body); }}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-destructive hover:text-destructive"
-                      aria-label="Delete note"
-                      disabled={busy}
-                      onClick={() => deleteNote.mutate(note.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                )}
-              </div>
+          {/* Searching looks across every day at once: a search that only
+              covered the day on screen would be worse than the list was. */}
+          {searching && live.map((note) => noteRow(note, true))}
 
-              {editingId === note.id ? (
-                <div className="mt-2 space-y-2">
-                  <Textarea
-                    rows={3}
-                    aria-label="Edit note"
-                    value={editDraft}
-                    disabled={busy}
-                    onChange={(e) => setEditDraft(e.target.value)}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      disabled={noteBodyIsEmpty(editDraft) || busy}
-                      onClick={() => editNote.mutate({ id: note.id, body: cleanNoteBody(editDraft) })}
-                    >
-                      Save
-                    </Button>
-                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditingId(null)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
+          {!searching && !isLoading && live.length > 0 && (
+            <>
+              {onSelectedDay.length === 0 ? (
+                <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+                  Nothing for this day. Write one above.
+                </p>
               ) : (
-                // Rough notes are typed with line breaks, and they are kept.
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm">{note.body}</p>
+                onSelectedDay.map((note) => noteRow(note, !!note.note_end_date))
               )}
-            </div>
-          ))}
+
+              {undated.length > 0 && (
+                <div className="border-t bg-muted/20">
+                  <p className="px-4 pb-1 pt-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Not on a day ({undated.length})
+                  </p>
+                  {undated.map((note) => noteRow(note))}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {removed.length > 0 && (

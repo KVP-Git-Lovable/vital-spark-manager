@@ -20,6 +20,10 @@ import { isoToIst } from "@/lib/istTime";
 export interface ClinicNote {
   id: string;
   body: string;
+  /** The day the note is about, yyyy-MM-dd. Null for an undated note. */
+  note_date?: string | null;
+  /** Last day of one that spans days; null when it is about note_date alone. */
+  note_end_date?: string | null;
   created_at: string;
   created_by_name: string | null;
   updated_at: string;

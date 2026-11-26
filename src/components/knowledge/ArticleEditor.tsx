@@ -106,9 +106,18 @@ export function ArticleEditor({ article, cloneFrom, serviceId, start, onClose }:
     catch (e) { if (!(e instanceof Error && e.name === "AbortError")) toast.error(e instanceof Error ? e.message : "AI draft failed"); }
     finally { setBusy(false); setDrafting(false); }
   };
-  return <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}><SheetContent className="w-screen sm:max-w-5xl overflow-y-auto">
-    <SheetHeader><SheetTitle>{patientOnly ? "Patient summary" : article ? "Edit Knowledge Article" : cloneFrom ? "Clone Knowledge Article" : "New Knowledge Article"}</SheetTitle></SheetHeader>
-    <div className="space-y-5 py-5">
+  /* The whole screen, not a panel down one side.
+     This is an article of about 12,500 characters across five clinical
+     sections, a cover picture, an AI diff and a resource list - it was being
+     written in a column with the list it came from still showing beside it.
+     The read page at /knowledge/:id was promoted out of a drawer for the same
+     reason. The surface covers the viewport and the form keeps the width it
+     had, centred, so no field stretches across a wide monitor; the shape the
+     prescription form uses for the same job. On a phone nothing changes -
+     w-screen was already the whole width there. */
+  return <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}><SheetContent className="w-screen max-w-none sm:max-w-none h-full overflow-y-auto">
+    <SheetHeader className="mx-auto w-full min-w-0 max-w-5xl"><SheetTitle>{patientOnly ? "Patient summary" : article ? "Edit Knowledge Article" : cloneFrom ? "Clone Knowledge Article" : "New Knowledge Article"}</SheetTitle></SheetHeader>
+    <div className="mx-auto w-full min-w-0 max-w-5xl space-y-5 py-5">
       {patientOnly && <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
         <p className="text-sm text-muted-foreground min-w-0">Patient's version of <span className="font-medium text-foreground">{form.title}</span></p>
         <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setPatientOnly(false)}>Show the full article</Button>

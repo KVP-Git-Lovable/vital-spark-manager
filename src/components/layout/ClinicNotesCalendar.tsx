@@ -49,7 +49,16 @@ export function ClinicNotesCalendar({
       onSelect={(date) => { if (date) onSelect(isoFromDay(date)); }}
       modifiers={{ hasNotes: marked }}
       modifiersClassNames={{ hasNotes: DOT }}
-      className={cn("p-2 pointer-events-auto", className)}
+      /* Roomier than the default 36px cell: this sits in a window of its own
+         now rather than a narrow drawer, and a day has to be easy to hit
+         with a finger as well as a mouse. The extra height is also what
+         leaves the dot clear of the number. */
+      classNames={{
+        head_cell: "text-muted-foreground rounded-md w-10 font-normal text-[0.8rem]",
+        cell: "h-10 w-10 text-center text-sm p-0 relative focus-within:relative focus-within:z-20",
+        day: "h-10 w-10 p-0 font-normal aria-selected:opacity-100 rounded-md hover:bg-accent hover:text-accent-foreground",
+      }}
+      className={cn("p-3 pointer-events-auto", className)}
     />
   );
 }

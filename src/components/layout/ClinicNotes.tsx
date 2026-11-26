@@ -3,7 +3,9 @@ import { CalendarDays, ChevronDown, NotebookPen, Pencil, RotateCcw, Search, Tras
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -220,23 +222,29 @@ export function ClinicNotes() {
   );
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
         <Button variant="ghost" size="icon" className="relative h-8 w-8 md:h-9 md:w-9">
           <NotebookPen className="h-4 w-4 md:h-5 md:w-5" />
           <span className="sr-only">Notes</span>
         </Button>
-      </SheetTrigger>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
-        <SheetHeader className="border-b px-4 py-3">
-          <SheetTitle className="font-display text-base">Notes</SheetTitle>
-        </SheetHeader>
+      </DialogTrigger>
 
-        <div className="space-y-2 border-b px-4 py-3">
-          <div className="relative">
+      {/* In the middle of the screen, and wide enough for the month and the
+          day to sit beside each other. In the drawer this was one 448px
+          column - month, then the writing box, then the notes - which left
+          the notes themselves a sliver at the bottom, so choosing a date
+          changed something nobody could see. */}
+      <DialogContent className="grid max-h-[88dvh] max-w-4xl grid-rows-[auto_auto_auto] gap-0 overflow-hidden p-0 md:h-[640px] md:grid-rows-[auto_minmax(0,1fr)_auto]">
+        <DialogHeader className="flex-row items-center gap-3 space-y-0 border-b px-4 py-3 pr-12">
+          <DialogTitle className="font-display shrink-0 text-base">Notes</DialogTitle>
+          <DialogDescription className="sr-only">
+            The clinic's shared notebook. Choose a day to read or write its notes.
+          </DialogDescription>
+          <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              className="pl-8 pr-8"
+              className="h-9 pl-8 pr-8"
               placeholder="Search notes…"
               aria-label="Search notes"
               value={query}
@@ -252,105 +260,119 @@ export function ClinicNotes() {
                 <X className="h-4 w-4" />
               </button>
             )}
-          </div>
-          {query.trim() && (
-            <p className="text-[11px] text-muted-foreground">{noteSearchSummary(live.length, query)}</p>
-          )}
-        </div>
-
-        {/* The month, with a dot under every day that carries a note. Hidden
-            while searching, where the answer is "which days", not "this day". */}
-        {!searching && (
-          <div className="border-b">
-            <ClinicNotesCalendar
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-              month={month}
-              onMonthChange={setMonth}
-              markedDates={marked}
-            />
-            <div className="flex items-center justify-between gap-2 px-4 pb-2">
-              <p className="min-w-0 truncate text-sm font-semibold">
-                {dayFromISO(selectedDate).toLocaleDateString("en-GB", {
-                  weekday: "long", day: "numeric", month: "long",
-                })}
-                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  {onSelectedDay.length === 0
-                    ? "no notes"
-                    : `${onSelectedDay.length} note${onSelectedDay.length === 1 ? "" : "s"}`}
-                </span>
+            {query.trim() && (
+              <p className="absolute left-0 top-full pt-1 text-[11px] text-muted-foreground">
+                {noteSearchSummary(live.length, query)}
               </p>
-              {selectedDate !== istToday() && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 shrink-0 px-2 text-xs"
-                  onClick={() => { setSelectedDate(istToday()); setMonth(dayFromISO(istToday())); }}
-                >
-                  Today
-                </Button>
+            )}
+          </div>
+        </DialogHeader>
+
+        {/* Two panes side by side on a desktop, each scrolling on its own. On a
+            phone they stack and the whole body scrolls as one piece - panes of
+            their own there would clip the last week of the month. */}
+        <div className="grid min-h-0 grid-cols-1 overflow-y-auto overscroll-contain md:grid-cols-[330px_minmax(0,1fr)] md:overflow-hidden">
+          {/* The month. Hidden while searching, where the answer is "which
+              days", not "this day". */}
+          {!searching && (
+            <div className="flex min-h-0 flex-col border-b bg-muted/30 md:overflow-y-auto md:border-b-0 md:border-r">
+              <ClinicNotesCalendar
+                selected={selectedDate}
+                onSelect={(iso) => { setSelectedDate(iso); setMonth(dayFromISO(iso)); }}
+                month={month}
+                onMonthChange={setMonth}
+                markedDates={marked}
+                className="mx-auto"
+              />
+            </div>
+          )}
+
+          {/* The day itself: what is written on it, and the box to add to it.
+              Beside the month, so a date that is clicked changes something in
+              plain view. */}
+          <div className={`flex min-h-0 flex-col ${searching ? "md:col-span-2" : ""}`}>
+            {/* The day's name sits over the day's notes, not under the month:
+                this is the half of the window that answers "what is on it". */}
+            {!searching && (
+              <div className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
+                <p className="min-w-0 truncate text-sm font-semibold">
+                  {dayFromISO(selectedDate).toLocaleDateString("en-GB", {
+                    weekday: "long", day: "numeric", month: "long",
+                  })}
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    {onSelectedDay.length === 0
+                      ? "no notes"
+                      : `${onSelectedDay.length} note${onSelectedDay.length === 1 ? "" : "s"}`}
+                  </span>
+                </p>
+                {selectedDate !== istToday() && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 shrink-0 px-2 text-xs"
+                    onClick={() => { setSelectedDate(istToday()); setMonth(dayFromISO(istToday())); }}
+                  >
+                    Today
+                  </Button>
+                )}
+              </div>
+            )}
+            <div className="space-y-2 border-b px-4 py-3">
+              <Textarea
+                rows={3}
+                placeholder={searching ? "Write a note…" : `Write a note for ${noteDateLabel(selectedDate)}…`}
+                aria-label="New note"
+                value={draft}
+                disabled={busy}
+                onChange={(e) => setDraft(e.target.value)}
+              />
+              <Button
+                size="sm"
+                className="w-full"
+                disabled={noteBodyIsEmpty(draft) || busy}
+                onClick={() => addNote.mutate(cleanNoteBody(draft))}
+              >
+                {addNote.isPending ? "Saving…" : "Save Note"}
+              </Button>
+            </div>
+
+            <div className="min-h-0 flex-1 md:overflow-y-auto">
+              {isLoading && <p className="p-4 text-sm text-muted-foreground">Loading…</p>}
+              {!isLoading && live.length === 0 && (
+                <p className="p-4 text-sm text-muted-foreground">
+                  {query.trim() ? "No notes match that." : "Nothing written yet."}
+                </p>
+              )}
+
+              {/* Searching looks across every day at once: a search that only
+                  covered the day on screen would be worse than the list was. */}
+              {searching && live.map((note) => noteRow(note, true))}
+
+              {!searching && !isLoading && live.length > 0 && (
+                <>
+                  {onSelectedDay.length === 0 ? (
+                    <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+                      Nothing for this day. Write one above.
+                    </p>
+                  ) : (
+                    onSelectedDay.map((note) => noteRow(note, !!note.note_end_date))
+                  )}
+
+                  {undated.length > 0 && (
+                    <div className="border-t bg-muted/20">
+                      <p className="px-4 pb-1 pt-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Not on a day ({undated.length})
+                      </p>
+                      {undated.map((note) => noteRow(note))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
-        )}
-
-        {/* Writing a new one, always at the top - the open page of the book.
-            It is written against the day chosen above, which is what puts the
-            dot on it. */}
-        <div className="space-y-2 border-b px-4 py-3">
-          <Textarea
-            rows={3}
-            placeholder={searching ? "Write a note…" : `Write a note for ${noteDateLabel(selectedDate)}…`}
-            aria-label="New note"
-            value={draft}
-            disabled={busy}
-            onChange={(e) => setDraft(e.target.value)}
-          />
-          <Button
-            size="sm"
-            className="w-full"
-            disabled={noteBodyIsEmpty(draft) || busy}
-            onClick={() => addNote.mutate(cleanNoteBody(draft))}
-          >
-            {addNote.isPending ? "Saving…" : "Save Note"}
-          </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {isLoading && <p className="p-4 text-sm text-muted-foreground">Loading…</p>}
-          {!isLoading && live.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">
-              {query.trim() ? "No notes match that." : "Nothing written yet."}
-            </p>
-          )}
-
-          {/* Searching looks across every day at once: a search that only
-              covered the day on screen would be worse than the list was. */}
-          {searching && live.map((note) => noteRow(note, true))}
-
-          {!searching && !isLoading && live.length > 0 && (
-            <>
-              {onSelectedDay.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  Nothing for this day. Write one above.
-                </p>
-              ) : (
-                onSelectedDay.map((note) => noteRow(note, !!note.note_end_date))
-              )}
-
-              {undated.length > 0 && (
-                <div className="border-t bg-muted/20">
-                  <p className="px-4 pb-1 pt-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Not on a day ({undated.length})
-                  </p>
-                  {undated.map((note) => noteRow(note))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {removed.length > 0 && (
+        {removed.length > 0 ? (
           <div className="border-t">
             <button
               type="button"
@@ -382,8 +404,8 @@ export function ClinicNotes() {
               </div>
             )}
           </div>
-        )}
-      </SheetContent>
-    </Sheet>
+        ) : <div />}
+      </DialogContent>
+    </Dialog>
   );
 }

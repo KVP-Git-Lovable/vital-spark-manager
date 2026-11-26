@@ -12,6 +12,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 interface Row {
   id: string; body: string;
+  note_date?: string | null; note_end_date?: string | null;
   created_at: string; created_by_name: string | null;
   updated_at: string; updated_by_name: string | null;
   deleted_at: string | null; deleted_by_name: string | null;
@@ -22,7 +23,7 @@ let rows: Row[] = [];
 const calls: { op: string; values?: Record<string, unknown>; id?: string }[] = [];
 
 const row = (over: Partial<Row>): Row => ({
-  id: "n1", body: "a note",
+  id: "n1", body: "a note", note_date: null, note_end_date: null,
   created_at: "2026-11-23T10:42:00Z", created_by_name: "Akash",
   updated_at: "2026-11-23T10:42:00Z", updated_by_name: null,
   deleted_at: null, deleted_by_name: null, ...over,
@@ -252,5 +253,63 @@ describe("what it says when there is nothing", () => {
     rows = [row({ id: "n1", updated_at: "2026-11-23T11:30:00Z" })];
     panel();
     expect(await screen.findByText(/· edited/)).toBeInTheDocument();
+  });
+});
+
+describe("choosing a day on the calendar", () => {
+  /* The clinic's report was "when we click on a calendar date nothing
+     happens". It did register - the day lit up - but the notes for it were
+     below the fold of a 448px drawer, so nothing anybody could see changed.
+     These press on the part that was invisible: what the click PUTS ON
+     SCREEN. */
+  const istDay = (d: Date) => new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d);
+
+  const today = istDay(new Date());
+  /** Another day in the same month, so one click of the grid reaches it. */
+  const other = `${today.slice(0, 8)}${today.endsWith("01") ? "02" : "01"}`;
+  const otherDayNumber = String(Number(other.slice(8)));
+
+  /* react-day-picker puts role="gridcell" on the day button itself, so a day
+     is not a "button" in the accessibility tree. The first match is the one
+     in the month on screen: any same-numbered twin is a trailing day of the
+     next month, which comes after it in the grid. */
+  const clickDay = (n: string) => fireEvent.click(screen.getAllByRole("gridcell", { name: n })[0]);
+
+  beforeEach(() => {
+    rows = [
+      row({ id: "n1", body: "Vindhya ma'am on leave", note_date: today }),
+      row({ id: "n2", body: "UPS service at 1:30pm", note_date: other }),
+    ];
+  });
+
+  it("shows the day that was clicked, and only that day", async () => {
+    panel();
+    expect(await screen.findByText("Vindhya ma'am on leave")).toBeInTheDocument();
+    expect(screen.queryByText("UPS service at 1:30pm")).not.toBeInTheDocument();
+
+    clickDay(otherDayNumber);
+
+    expect(await screen.findByText("UPS service at 1:30pm")).toBeInTheDocument();
+    expect(screen.queryByText("Vindhya ma'am on leave")).not.toBeInTheDocument();
+  });
+
+  it("writes the next note against the day that was clicked", async () => {
+    panel();
+    await screen.findByText("Vindhya ma'am on leave");
+    clickDay(otherDayNumber);
+    type("New note", "Stock delivery");
+    fireEvent.click(screen.getByRole("button", { name: "Save Note" }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].values).toMatchObject({ note_date: other });
+  });
+
+  it("says so when the day that was clicked is empty", async () => {
+    rows = [row({ id: "n1", body: "Vindhya ma'am on leave", note_date: today })];
+    panel();
+    await screen.findByText("Vindhya ma'am on leave");
+    clickDay(otherDayNumber);
+    expect(await screen.findByText("Nothing for this day. Write one above.")).toBeInTheDocument();
   });
 });

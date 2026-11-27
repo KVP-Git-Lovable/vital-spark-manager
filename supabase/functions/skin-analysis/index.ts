@@ -26,10 +26,31 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are an expert dermatologist AI assistant. You will be shown two skin photos: a "before" photo and an "after" photo of the same patient. Analyze both images and provide a structured skin analysis comparison.
+    // The same two-step instruction the nightly runner uses. It was wrong for
+    // the clinician's button to be the ungated one: two AIs disagreeing about
+    // the same two photos, where the one a doctor actually clicks is the one
+    // that will score a face against a forearm.
+    //
+    // Here the clinician picked the photos by hand, so a refusal is rarer than
+    // in the automatic run - but "I picked these" is not evidence they are
+    // comparable, and a mis-click should not become a percentage in a record.
+    const systemPrompt = `You are a dermatology AI comparing two clinical photographs of the same patient from The Skin Clinic.
 
-Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
+STEP 1 - DECIDE WHETHER THE TWO PHOTOS CAN BE COMPARED AT ALL. Refuse the comparison if ANY of these is true:
+- they show different body areas (a face and an arm, a scalp and a back)
+- they show the same area from views too different to compare (full face vs close-up of one cheek, front vs profile)
+- either image is not a clinical skin photograph (a document, a prescription, a report, a screenshot, a product, a room)
+- either image is too blurred, too dark or too obstructed to assess
+- they do not plausibly show the same person
+
+If you refuse, respond ONLY with:
+{"comparable": false, "reason": "<one short sentence saying what the two photos actually show>"}
+
+Do not score a pair you have refused. An improvement percentage across two different body parts is worse than no answer, because it goes into a patient's record.
+
+STEP 2 - ONLY IF the two photos show the same area of the same person in comparable views, respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
 {
+  "comparable": true,
   "overallImprovement": <number 0-100>,
   "summary": "<2-3 sentence summary of changes>",
   "metrics": [
@@ -40,7 +61,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
   "recommendations": ["<recommendation 1>", "<recommendation 2>", "<recommendation 3>"]
 }
 
-Analyze these metrics at minimum: Texture, Tone Evenness, Pigmentation, Hydration, Pore Visibility, Fine Lines. Add more if relevant. Scores are 1 (worst) to 10 (best).`;
+Analyze these metrics at minimum: Texture, Tone Evenness, Pigmentation, Hydration, Pore Visibility, Fine Lines. Add more if relevant. Scores are 1 (worst) to 10 (best). overallImprovement must never exceed 100.`;
 
     let response: Response | null = null;
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -107,6 +128,24 @@ Analyze these metrics at minimum: Texture, Tone Evenness, Pigmentation, Hydratio
     }
 
     const analysis = JSON.parse(cleanContent);
+
+    // A refusal goes back under `error`, which is not a workaround but the one
+    // shape that is safe for both builds at once. An edge function changes the
+    // moment it is deployed; clinic.quickapp.ai only changes when someone
+    // publishes. The published build does
+    //   if (data?.error) throw new Error(data.error)
+    // so it shows the reason as a toast and prints no figure - exactly right,
+    // with no deploy. Returning the refusal any other way would have it render
+    // "undefined%" in the live clinic until the next publish.
+    if (analysis && analysis.comparable === false) {
+      const reason = typeof analysis.reason === "string" && analysis.reason.trim()
+        ? analysis.reason.trim()
+        : "These two photos do not show the same area, so they cannot be compared.";
+      return new Response(
+        JSON.stringify({ error: reason, comparable: false, reason }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     return new Response(JSON.stringify(analysis), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

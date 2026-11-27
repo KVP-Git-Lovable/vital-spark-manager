@@ -338,6 +338,69 @@ describe("the queue that decides what is still due", () => {
   });
 });
 
+describe("the button a clinician actually presses", () => {
+  // skin-analysis is the interactive one. It was left ungated while the
+  // nightly runner had the gate, so the clinic had two AIs that disagreed
+  // about the same two photos - and the one a doctor clicks was the one that
+  // would score a face against a forearm.
+  const src = readFileSync("supabase/functions/skin-analysis/index.ts", "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+
+  it("judges the pair before scoring it, like the nightly run", () => {
+    expect(src).toMatch(/"comparable": false/);
+    expect(src).toMatch(/different body areas/i);
+    expect(src).toMatch(/Do not score a pair you have refused/i);
+    expect(src).toMatch(/must never exceed 100/i);
+  });
+
+  it("returns a refusal in the one shape the PUBLISHED build handles well", () => {
+    // An edge function changes the instant it is deployed; clinic.quickapp.ai
+    // only changes when somebody publishes. The published build does
+    // `if (data?.error) throw new Error(data.error)`, so a refusal under
+    // `error` becomes a toast with the reason and no figure - correct with no
+    // deploy. Any other shape renders "undefined%" in the live clinic.
+    expect(src).toMatch(/analysis\.comparable === false/);
+    expect(src).toMatch(/JSON\.stringify\(\{ error: reason, comparable: false, reason \}\)/);
+  });
+
+  it("never sends a refusal back as an HTTP error", () => {
+    // A non-200 would reach the old client as a thrown invoke error with no
+    // reason in it, so the clinician would see "Failed to analyze" instead of
+    // being told the photos do not match.
+    const refusal = src.slice(src.indexOf("analysis.comparable === false"));
+    const block = refusal.slice(0, refusal.indexOf("return new Response(JSON.stringify(analysis)"));
+    expect(block).not.toMatch(/status:\s*[45]\d\d/);
+  });
+
+  it("keeps retrying a 503, because here someone is waiting", () => {
+    // The opposite call from the batch runner, and deliberately so: three
+    // tries is right for a clinician at a screen and wrong across 11,000
+    // calls, where it triples the bill.
+    expect(src).toMatch(/attempt < 3/);
+  });
+});
+
+describe("the dialog that shows the answer", () => {
+  const src = readFileSync("src/components/shared/SkinTracker.tsx", "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+
+  it("checks the reply rather than trusting it", () => {
+    // Shares readVerdict with the runner, so the two cannot drift apart.
+    expect(src).toMatch(/import \{ readVerdict \} from "@\/lib\/skinProgress"/);
+    expect(src).toMatch(/const verdict = readVerdict\(data\)/);
+  });
+
+  it("saves nothing to the record when the pair was refused", () => {
+    // Slice from runAnalysis to its own saveAiRecord call - saveAiRecord also
+    // appears in the import line above, so a bare indexOf returns nothing.
+    const start = src.indexOf("const runAnalysis");
+    const run = src.slice(start, src.indexOf("saveAiRecord", start));
+    expect(run.length).toBeGreaterThan(100);
+    expect(run).toMatch(/if \(!verdict\.comparable\) \{[\s\S]*?return;/);
+    expect(run).toMatch(/data\?\.comparable === false[\s\S]*?return;/);
+  });
+});
+
 describe("the migration behind it", () => {
   const sql = readFileSync("supabase/migrations/20261127140000_keep_the_skin_tracker_number.sql", "utf8")
     .replace(/^\s*--.*$/gm, "");

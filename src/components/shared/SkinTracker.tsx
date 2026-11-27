@@ -9,7 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { SkinAnalysisResults, type SkinAnalysis } from "./SkinAnalysisResults";
+import { SkinAnalysisResults, SkinNotComparable, type SkinAnalysis } from "./SkinAnalysisResults";
+import { readVerdict } from "@/lib/skinProgress";
 import { saveAiRecord } from "@/lib/aiRepository";
 import { useQueryClient } from "@tanstack/react-query";
 import { compareFileName } from "@/lib/compareExport";
@@ -45,6 +46,9 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
   const [sliderPos, setSliderPos] = useState(50);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<SkinAnalysis | null>(null);
+  // Why the AI would not score the pair. Never set at the same time as an
+  // analysis: the dialog shows a figure or a reason, never both.
+  const [refusal, setRefusal] = useState<string | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
   // Measured, not assumed. The pan is recorded in on-screen pixels as the
@@ -157,7 +161,15 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
 
   // A new pair is a new comparison; carrying the previous zoom and tilt over
   // would silently apply one photo's correction to another photo.
-  useEffect(() => { resetView(); }, [beforePhoto?.id, afterPhoto?.id, resetView]);
+  // A new pair clears the last verdict as well as the view. Without this the
+  // previous analysis - or the previous refusal - stays on screen under two
+  // photos it was never about, which is the same "right number, wrong photos"
+  // fault the comparability gate exists to prevent.
+  useEffect(() => {
+    resetView();
+    setAnalysis(null);
+    setRefusal(null);
+  }, [beforePhoto?.id, afterPhoto?.id, resetView]);
 
   const reset = () => {
     setBeforePhoto(null);
@@ -165,6 +177,7 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
     setSelecting(null);
     setSliderPos(50);
     setAnalysis(null);
+    setRefusal(null);
     setAnalyzing(false);
     setSaving(false);
     resetView();
@@ -179,12 +192,31 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
     if (!beforePhoto || !afterPhoto) return;
     setAnalyzing(true);
     setAnalysis(null);
+    setRefusal(null);
     try {
       const { data, error } = await supabase.functions.invoke("skin-analysis", {
         body: { beforeImageUrl: beforePhoto.photo_url, afterImageUrl: afterPhoto.photo_url },
       });
       if (error) throw error;
+
+      // A refusal is an answer, not a failure, so it is shown in the dialog
+      // rather than thrown as a toast that disappears.
+      if (data?.comparable === false) {
+        setRefusal(String(data.reason || data.error || "These two photos cannot be compared."));
+        return;
+      }
       if (data?.error) throw new Error(data.error);
+
+      // Read through the same checker the nightly run uses, so the dialog
+      // cannot show a figure the model never vouched for, or one off the 0-100
+      // scale it was asked for. Without this the client simply trusts whatever
+      // arrives - which is how "160% improvement" could have been printed.
+      const verdict = readVerdict(data);
+      if (!verdict.comparable) {
+        setRefusal(verdict.reason ?? "These two photos cannot be compared.");
+        return;
+      }
+
       setAnalysis(data as SkinAnalysis);
       if (patientId) {
         await saveAiRecord({ patientId, appointmentId, kind: "skin_analysis", title: `AI Photo Analysis - ${patientName}`, content: { ...data, beforePhotoId: beforePhoto.id, afterPhotoId: afterPhoto.id } });
@@ -262,7 +294,7 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
               {beforePhoto ? (
                 <div className="relative group">
                   <img src={beforePhoto.photo_url} alt="Photo 1" className="w-full h-36 object-cover rounded-lg border-2 border-primary" />
-                  <Button variant="secondary" size="icon" className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setBeforePhoto(null); setAnalysis(null); }}>
+                  <Button aria-label="Clear photo 1" variant="secondary" size="icon" className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setBeforePhoto(null)}>
                     <X className="h-3 w-3" />
                   </Button>
                   <p className="text-[10px] text-muted-foreground mt-1">{format(new Date(beforePhoto.taken_at), "MMM d, yyyy")}</p>
@@ -283,7 +315,7 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
               {afterPhoto ? (
                 <div className="relative group">
                   <img src={afterPhoto.photo_url} alt="Photo 2" className="w-full h-36 object-cover rounded-lg border-2 border-primary" />
-                  <Button variant="secondary" size="icon" className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setAfterPhoto(null); setAnalysis(null); }}>
+                  <Button aria-label="Clear photo 2" variant="secondary" size="icon" className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setAfterPhoto(null)}>
                     <X className="h-3 w-3" />
                   </Button>
                   <p className="text-[10px] text-muted-foreground mt-1">{format(new Date(afterPhoto.taken_at), "MMM d, yyyy")}</p>
@@ -512,6 +544,7 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
                 </div>
               )}
               {analysis && <SkinAnalysisResults analysis={analysis} />}
+              {refusal && <SkinNotComparable reason={refusal} />}
             </div>
           )}
         </div>

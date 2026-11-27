@@ -1,7 +1,7 @@
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, Minus, Sparkles, Lightbulb } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Sparkles, Lightbulb, AlertTriangle } from "lucide-react";
 
 export interface SkinMetric {
   name: string;
@@ -16,6 +16,29 @@ export interface SkinAnalysis {
   metrics: SkinMetric[];
   details: string;
   recommendations: string[];
+}
+
+/**
+ * The AI would not vouch for the pair.
+ *
+ * Shown instead of a score, never alongside one. The two photos a clinician
+ * picks are frequently different areas or views - that is what the automatic
+ * run found across the clinic's own photos - and a percentage computed across
+ * those is a made-up number in a patient's record, not a weak one.
+ */
+export function SkinNotComparable({ reason }: { reason: string }) {
+  return (
+    <Card className="p-4 border-amber-500/30 bg-amber-500/5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      <div className="flex items-center gap-3 mb-1.5">
+        <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500" />
+        <h4 className="font-display font-semibold text-sm">These two photos cannot be compared</h4>
+      </div>
+      <p className="text-sm text-foreground/80">{reason}</p>
+      <p className="text-xs text-muted-foreground mt-2">
+        Pick two photos of the same area, taken from the same angle, and try again.
+      </p>
+    </Card>
+  );
 }
 
 interface SkinAnalysisResultsProps {
@@ -35,6 +58,9 @@ function changeBadgeVariant(change: string) {
 }
 
 export function SkinAnalysisResults({ analysis }: SkinAnalysisResultsProps) {
+  const raw = Number(analysis.overallImprovement);
+  const score = Number.isFinite(raw) ? Math.min(100, Math.max(0, raw)) : 0;
+
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
       {/* Overall Score */}
@@ -44,10 +70,13 @@ export function SkinAnalysisResults({ analysis }: SkinAnalysisResultsProps) {
           <h4 className="font-display font-semibold text-sm">AI Skin Analysis</h4>
         </div>
         <div className="flex items-center gap-4 mb-3">
-          <div className="text-3xl font-bold text-primary">{analysis.overallImprovement}%</div>
+          {/* Clamped. This used to print whatever the model emitted straight
+              into the figure and the bar, so a reply of 160 read as "160%"
+              with the bar run off its end. */}
+          <div className="text-3xl font-bold text-primary">{score}%</div>
           <div className="flex-1">
             <p className="text-xs text-muted-foreground mb-1">Overall Improvement</p>
-            <Progress value={analysis.overallImprovement} className="h-2" />
+            <Progress value={score} className="h-2" />
           </div>
         </div>
         <p className="text-sm text-foreground/80">{analysis.summary}</p>

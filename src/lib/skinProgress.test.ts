@@ -266,8 +266,75 @@ describe("the runner, as a piece of source", () => {
     expect(src).not.toMatch(/for \(let attempt/);
   });
 
+  it("stops starting work before the platform stops it, and says so", () => {
+    // The real queue needs 49 gateway calls for its first 25 patients -
+    // minutes of work, past both the invocation limit and sf_fire_function's
+    // 150s timeout. Same deadline pattern as the sf-import-* functions.
+    expect(src).toMatch(/RUN_BUDGET_MS = 90_000/);
+    expect(src).toMatch(/const deadline = Date\.now\(\) \+ RUN_BUDGET_MS/);
+    expect(src).toMatch(/if \(Date\.now\(\) > deadline\)/);
+    expect(src).toMatch(/stopped_early: false/);
+    expect(src).toMatch(/report\.stopped_early = true/);
+  });
+
+  it("never abandons a pair it has already paid for", () => {
+    // The deadline is checked BEFORE the gateway call, never after: stopping
+    // mid-call would spend the money and keep nothing, and would leave the
+    // queue believing the pair was never asked.
+    const beforeCall = src.slice(0, src.indexOf("await fetch("));
+    expect(beforeCall).toMatch(/Date\.now\(\) > deadline/);
+    const afterCall = src.slice(src.indexOf("await fetch("));
+    expect(afterCall).not.toMatch(/Date\.now\(\) > deadline/);
+  });
+
+  it("does not ask again about a pair already answered", () => {
+    // A patient re-enters the queue whenever ANY measure is missing, so
+    // without this a resumed run pays the gateway a second time for a figure
+    // already stored about the very same two photos.
+    expect(src).toMatch(/const answered = new Set\(/);
+    expect(src).toMatch(/answered\.has\(`\$\{patientId\}\|\$\{pair\.measure\}\|\$\{pair\.before\.id\}\|\$\{pair\.after\.id\}`\)/);
+    expect(src).toMatch(/pairs_already_done \+= 1/);
+  });
+
+  it("runs a few gateway calls at once, but only a few", () => {
+    expect(src).toMatch(/const POOL = 3;/);
+    expect(src).toMatch(/mapPool\(jobs, POOL,/);
+  });
+
   it("writes one row per patient per measure rather than a pile of history", () => {
     expect(src).toMatch(/onConflict: "patient_id,measure"/);
+  });
+});
+
+describe("the queue that decides what is still due", () => {
+  const sql = readFileSync("supabase/migrations/20261127170000_the_queue_counts_both_measures.sql", "utf8")
+    .replace(/^\s*--.*$/gm, "");
+
+  it("counts the measures recorded, instead of checking only 'overall'", () => {
+    // The original checked `measure = 'overall'` alone, so a patient whose
+    // run stopped between the two measures looked complete, dropped out of
+    // the queue, and never had 'since_last' computed at all.
+    expect(sql).toMatch(/select count\(\*\)[\s\S]*?from public\.skin_progress sp/);
+    expect(sql).toMatch(/case when pp\.photo_count >= 3 then 2 else 1 end/);
+    expect(sql).not.toMatch(/and sp\.measure = 'overall'/);
+  });
+
+  it("still measures against the patient's CURRENT latest photo", () => {
+    // Otherwise a patient photographed again would never be re-measured.
+    expect(sql).toMatch(/sp\.after_photo_id = pp\.latest_photo_id/);
+  });
+
+  it("keeps every guard the first version had", () => {
+    expect(sql).toMatch(/revoke all on function public\.skin_progress_queue\(integer, boolean\) from public, anon, authenticated/);
+    expect(sql).toMatch(/grant execute on function public\.skin_progress_queue\(integer, boolean\) to service_role/);
+    expect(sql).not.toMatch(/security definer/i);
+    expect(sql).toMatch(/limit greatest\(1, least\(coalesce\(p_limit, 25\), 200\)\)/);
+    expect(sql).toMatch(/at time zone 'Asia\/Kolkata'/);
+  });
+
+  it("changes no signature, so the published build is untouched", () => {
+    expect(sql).toMatch(/create or replace function public\.skin_progress_queue\(\s*p_limit integer default 25,\s*p_only_today boolean default false\s*\)/);
+    expect(sql).not.toMatch(/drop function/i);
   });
 });
 

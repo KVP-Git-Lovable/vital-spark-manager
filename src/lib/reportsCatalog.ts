@@ -19,6 +19,9 @@ import {
   type MaterialLine,
 } from "@/lib/invoiceExportRows";
 import { formatMoneyExact } from "@/lib/currency";
+import {
+  conversionCaveat, lapsedByMonth, retentionCards, type RetentionRow,
+} from "@/lib/retentionReport";
 import { collectionCards, modesOf, paymentModeLabel, PAYMENT_BUCKETS } from "@/lib/paymentModes";
 import { npsBreakdown, npsCategory, ratingLabel } from "@/lib/feedbackScores";
 import { referralKind, referringDoctorName } from "@/lib/patientReferral";
@@ -1153,6 +1156,84 @@ const BASE_REPORTS: ReportConfig[] = [
 ];
 
 /**
+ * Patient Retention & Conversion.
+ *
+ * Two questions the clinic asked: how many people consulted once and never
+ * came back, and how often an appointment becomes a procedure.
+ *
+ * Both span the whole history, so they are counted in the database by
+ * clinic_retention_conversion rather than over rows fetched into the browser -
+ * the dashboard was lately found to have been adding up the first thousand
+ * rows of a fetch and saying nothing about it.
+ *
+ * The rows are the point as much as the tiles: a named, dated, numbered list
+ * of first-time patients who have not been back, which somebody can ring.
+ */
+const RETENTION_KEY = "retention_conversion";
+
+const retentionReport: ReportConfig = {
+  key: RETENTION_KEY,
+  title: "Patient Retention & Conversion",
+  description:
+    "First-time patients whose first visit was a consultation, and whether they ever came back - plus how many patients ever have a procedure. Cancellations and no-shows are excluded throughout.",
+  category: "Patients",
+  defaultSort: { key: "consult_date", dir: "desc" },
+  columns: [
+    { key: "patient_name", label: "Patient", sortable: true },
+    { key: "phone", label: "Phone", sortable: true },
+    { key: "consult_date", label: "First consultation", sortable: true, type: "date" },
+    { key: "service", label: "Booked as", sortable: true },
+    { key: "doctor", label: "Doctor", sortable: true },
+    {
+      key: "had_procedure", label: "Procedure that day", sortable: true, type: "badge",
+      accessor: (r) => (r.had_procedure ? "Yes" : "No"),
+    },
+    {
+      key: "returned", label: "Came back", sortable: true, type: "badge",
+      accessor: (r) => (r.returned ? "Yes" : "Never"),
+    },
+    { key: "days_since", label: "Days since", sortable: true, type: "number" },
+  ],
+  filters: [
+    { key: "dateRange", label: "First consultation", type: "dateRange", field: "consult_date" },
+    {
+      key: "returned", label: "Came back", type: "select", field: "returned",
+      options: [{ value: "Never", label: "Never came back" }, { value: "Yes", label: "Came back" }],
+    },
+    {
+      key: "had_procedure", label: "Procedure that day", type: "select", field: "had_procedure",
+      options: [{ value: "Yes", label: "Had a procedure" }, { value: "No", label: "Nothing done" }],
+    },
+    { key: "doctor", label: "Doctor", type: "doctor", matches: (r, v) => String(r.doctor ?? "") === v },
+  ],
+  searchFields: ["patient_name", "phone", "service", "doctor"],
+  rowHref: (r) => (r.patient_id ? `/patients/${r.patient_id}` : null),
+  fetcher: async ({ from, to }) => {
+    // A year back by default: the question was asked about the last 12 months,
+    // and the window is what makes "first-time" mean anything.
+    const today = new Date();
+    const yearAgo = new Date(today);
+    yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+    const asDate = (value: string | undefined, fallback: Date) =>
+      (value ? value.slice(0, 10) : fallback.toISOString().slice(0, 10));
+    const { data, error } = await supabase.rpc("clinic_retention_conversion", {
+      p_from: asDate(from, yearAgo),
+      p_to: asDate(to, today),
+    });
+    if (error) throw error;
+    // `totals` arrives as the generated Json type; its shape is read
+    // defensively in retentionTotals, which is where it is given meaning.
+    return (data ?? []) as unknown as RetentionRow[];
+  },
+  summary: (rows) => retentionCards(rows as RetentionRow[]),
+  chart: {
+    title: "First-timers who never came back, by month",
+    valueLabel: "Patients",
+    build: (rows) => lapsedByMonth(rows as RetentionRow[]),
+  },
+};
+
+/**
  * All Feedbacks - the patient feedback report, plus the decision it leads to.
  *
  * Same columns, same filters, same cards and chart as the report on /reports:
@@ -1236,7 +1317,7 @@ const allFeedbacks: ReportConfig = {
   },
 };
 
-export const REPORTS: ReportConfig[] = [...BASE_REPORTS, allFeedbacks];
+export const REPORTS: ReportConfig[] = [...BASE_REPORTS, retentionReport, allFeedbacks];
 
 export function getReport(key: string) {
   return REPORTS.find((r) => r.key === key);

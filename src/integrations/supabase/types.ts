@@ -9567,6 +9567,21 @@ export type Database = {
       }
       next_invoice_numbers: { Args: { _count?: number }; Returns: string[] }
       normalize_name: { Args: { _text: string }; Returns: string }
+      clinic_retention_conversion: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          consult_date: string
+          days_since: number
+          doctor: string
+          had_procedure: boolean
+          patient_id: string
+          patient_name: string
+          phone: string
+          returned: boolean
+          service: string
+          totals: Json
+        }[]
+      }
       patient_visit_history: {
         Args: { p_appointment_id: string }
         Returns: {

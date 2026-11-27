@@ -251,6 +251,12 @@ describe("the report", () => {
   it("still offers the original report untouched", () => {
     const source = catalog();
     expect(source).toContain('key: "patient_feedback"');
-    expect(source).toContain("export const REPORTS: ReportConfig[] = [...BASE_REPORTS, allFeedbacks];");
+    /* The guarantee is that All Feedbacks is APPENDED to the base catalogue
+       rather than replacing anything in it. Matched as a shape, not as the
+       whole line: pinning the membership of the array made adding any new
+       report to the catalogue fail this, which is not what it is guarding. */
+    expect(source).toMatch(/export const REPORTS: ReportConfig\[\] = \[\.\.\.BASE_REPORTS,[^\]]*allFeedbacks\];/);
+    expect(getReport("patient_feedback")).toBeTruthy();
+    expect(getReport("all_feedbacks")).toBeTruthy();
   });
 });

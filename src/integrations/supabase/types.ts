@@ -9610,6 +9610,21 @@ export type Database = {
         Returns: boolean
       }
       clean_investigation_text: { Args: { _text: string }; Returns: string }
+      clinic_retention_conversion: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          consult_date: string
+          days_since: number
+          doctor: string
+          had_procedure: boolean
+          patient_id: string
+          patient_name: string
+          phone: string
+          returned: boolean
+          service: string
+          totals: Json
+        }[]
+      }
       create_patient_portal_token: {
         Args: {
           _expires_at: string
@@ -9661,21 +9676,6 @@ export type Database = {
       }
       next_invoice_numbers: { Args: { _count?: number }; Returns: string[] }
       normalize_name: { Args: { _text: string }; Returns: string }
-      clinic_retention_conversion: {
-        Args: { p_from: string; p_to: string }
-        Returns: {
-          consult_date: string
-          days_since: number
-          doctor: string
-          had_procedure: boolean
-          patient_id: string
-          patient_name: string
-          phone: string
-          returned: boolean
-          service: string
-          totals: Json
-        }[]
-      }
       patient_visit_history: {
         Args: { p_appointment_id: string }
         Returns: {
@@ -9782,6 +9782,15 @@ export type Database = {
       sf_tail_cursor: { Args: { _back?: number }; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      skin_progress_queue: {
+        Args: { p_limit?: number; p_only_today?: boolean }
+        Returns: {
+          latest_photo_id: string
+          latest_taken_at: string
+          patient_id: string
+          photo_count: number
+        }[]
+      }
       trash_allowed_object: { Args: { _object_type: string }; Returns: boolean }
       trash_capture_children: {
         Args: { _object_type: string; _record_id: string }

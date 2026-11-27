@@ -48,6 +48,7 @@ import { patientAgeLabel, patientAgeValue } from "@/lib/patientIdentity";
 import { MessageCircle } from "lucide-react";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
+import { SkinProgressStrip } from "@/components/photos/SkinProgressStrip";
 import { PatientAttachments } from "@/components/patients/PatientAttachments";
 import { usePatientAttachments } from "@/hooks/usePatientAttachments";
 import { FamilyMembers } from "@/components/patients/FamilyMembers";
@@ -1479,6 +1480,8 @@ const PatientDetail = () => {
         {/* Photos Tab */}
         <TabsContent value="photos">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
+            {/* What the AI made of this patient's photos, if it has run. */}
+            <SkinProgressStrip patientId={id!} />
             <div className="flex justify-end gap-2 mb-3">
               {/* Several photos at once. This used to be a single-file input
                   here, so ten photos meant ten trips through the picker; the

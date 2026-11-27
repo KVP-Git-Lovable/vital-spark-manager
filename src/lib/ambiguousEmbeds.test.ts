@@ -48,12 +48,18 @@ const AMBIGUOUS_EMBEDS: Record<string, string[]> = {
   // would let the outage straight back in when the key is restored.
   appointments: ["staff"],
   assets: ["vendors"],               // vendor_id, amc_vendor_id
+  // staff_id, approved_by. Present in the live schema and missing from this
+  // list until now - re-deriving the query above is the only way that shows.
+  attendance_regularisations: ["staff"],
   comms_journeys: ["staff"],         // created_by, submitted_by, approver_id
   feedback_rca: ["staff"],           // assigned_to, resolved_by, created_by
   leads: ["staff"],                  // created_by, owner_id
   leave_applications: ["staff"],     // staff_id, approved_by
   patient_family_members: ["patients"], // patient_id, related_patient_id
   procedures: ["staff"],             // staff_id, assisted_by
+  // before_photo_id, after_photo_id. The skin progress row is about a pair of
+  // photos, so two routes to the same table is the point of it.
+  skin_progress: ["patient_photos"],
 };
 
 const SEARCH_ROOTS = ["src", "supabase/functions"];

@@ -6884,6 +6884,100 @@ export type Database = {
         }
         Relationships: []
       }
+      skin_ai_state: {
+        Row: {
+          id: string
+          reason: string
+          status_code: number
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          reason: string
+          status_code: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          reason?: string
+          status_code?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      skin_progress: {
+        Row: {
+          after_photo_id: string | null
+          after_taken_at: string | null
+          before_photo_id: string | null
+          before_taken_at: string | null
+          comparable: boolean
+          computed_at: string
+          id: string
+          improvement: number | null
+          measure: string
+          metrics: Json
+          model: string | null
+          not_comparable_reason: string | null
+          patient_id: string
+          summary: string | null
+        }
+        Insert: {
+          after_photo_id?: string | null
+          after_taken_at?: string | null
+          before_photo_id?: string | null
+          before_taken_at?: string | null
+          comparable?: boolean
+          computed_at?: string
+          id?: string
+          improvement?: number | null
+          measure: string
+          metrics?: Json
+          model?: string | null
+          not_comparable_reason?: string | null
+          patient_id: string
+          summary?: string | null
+        }
+        Update: {
+          after_photo_id?: string | null
+          after_taken_at?: string | null
+          before_photo_id?: string | null
+          before_taken_at?: string | null
+          comparable?: boolean
+          computed_at?: string
+          id?: string
+          improvement?: number | null
+          measure?: string
+          metrics?: Json
+          model?: string | null
+          not_comparable_reason?: string | null
+          patient_id?: string
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skin_progress_after_photo_id_fkey"
+            columns: ["after_photo_id"]
+            isOneToOne: false
+            referencedRelation: "patient_photos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "skin_progress_before_photo_id_fkey"
+            columns: ["before_photo_id"]
+            isOneToOne: false
+            referencedRelation: "patient_photos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "skin_progress_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       social_ad_accounts: {
         Row: {
           account_status: string | null

@@ -252,6 +252,13 @@ describe("the runner, as a piece of source", () => {
     expect(params).toEqual(['searchParams.get("today")']);
   });
 
+  it("is declared as needing a JWT, rather than inheriting it", () => {
+    // This file is full of verify_jwt = false for webhooks. An absence here
+    // would later read as "no JWT needed" on a function that spends credits.
+    const toml = readFileSync("supabase/config.toml", "utf8");
+    expect(toml).toMatch(/\[functions\.skin-progress-run\]\s*\n\s*verify_jwt = true/);
+  });
+
   it("does not retry a 503 the way the interactive function does", () => {
     // skin-analysis retries three times per click, which is right for a
     // clinician waiting and triples the bill in a batch of 11,400 calls.

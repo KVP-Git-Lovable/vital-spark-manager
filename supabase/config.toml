@@ -102,3 +102,16 @@ verify_jwt = false
 # inherited so nobody later reads the absence as "no JWT needed".
 [functions.create-user-account]
 verify_jwt = true
+
+# Nightly skin progress. Fired by pg_cron through public.sf_fire_function,
+# which sends the publishable anon key - a valid JWT, so the default gate is
+# what this relies on. Written down rather than inherited: an absence here
+# would later read as "no JWT needed", and this function spends AI credits.
+#
+# The JWT is the only thing in front of it, and the anon key is public (it
+# ships inside the app's JavaScript), which is why skin-progress-run accepts
+# no parameters from its caller, caps itself per run and honours the
+# skin_ai_state latch. The worst a stranger with the URL can do is make
+# tonight's batch run early.
+[functions.skin-progress-run]
+verify_jwt = true

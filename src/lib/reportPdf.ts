@@ -308,6 +308,8 @@ export interface ReportPdfArgs {
    * date and the patient are blank because they are already on the line above.
    */
   emptyCell?: string;
+  /** Lines printed under the table - the notes the summary cards point at. */
+  footnotes?: string[];
 }
 
 /** Summary boxes per row before wrapping, so each stays wide enough to read. */
@@ -344,7 +346,7 @@ export function summaryBoxLayout(
 }
 
 /** Assemble the document. Split from the save so the output can be inspected in tests. */
-export async function buildReportPdf({ report, rows, summary, filterState, dayOnly, totals, recordCount, emptyCell }: ReportPdfArgs) {
+export async function buildReportPdf({ report, rows, summary, filterState, dayOnly, totals, recordCount, emptyCell, footnotes = [] }: ReportPdfArgs) {
   const [{ jsPDF }, { autoTable }, clinic, filterLine] = await Promise.all([
     import("jspdf"),
     import("jspdf-autotable"),
@@ -491,6 +493,27 @@ export async function buildReportPdf({ report, rows, summary, filterState, dayOn
       doc.setTextColor(0);
     },
   });
+
+  // The notes, under the table on the last page. The PDF is the copy that
+  // leaves the building, so a caveat that only existed on screen would be the
+  // one thing missing from the version somebody actually reads.
+  if (footnotes.length) {
+    const lastY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y;
+    let noteY = lastY + 16;
+    doc.setFontSize(8);
+    doc.setTextColor(110);
+    for (const note of footnotes) {
+      const lines: string[] = doc.splitTextToSize(sanitize(note), pageWidth - margin * 2);
+      // Start a page rather than run the note into the footer.
+      if (noteY + lines.length * 10 > doc.internal.pageSize.getHeight() - 40) {
+        doc.addPage();
+        noteY = margin;
+      }
+      doc.text(lines, margin, noteY);
+      noteY += lines.length * 10 + 4;
+    }
+    doc.setTextColor(0);
+  }
 
   return doc;
 }

@@ -22,6 +22,8 @@ export interface RetentionTotals {
   appointments_with_procedure: number;
   procedures: number;
   procedures_unlinked: number;
+  procedures_dated: number;
+  procedures_dated_unlinked: number;
   window_appointments: number;
   window_appointments_no_service: number;
 }
@@ -70,6 +72,8 @@ export function retentionTotals(rows: RetentionRow[]): RetentionTotals {
     appointments_with_procedure: num(raw.appointments_with_procedure),
     procedures: num(raw.procedures),
     procedures_unlinked: num(raw.procedures_unlinked),
+    procedures_dated: num(raw.procedures_dated),
+    procedures_dated_unlinked: num(raw.procedures_dated_unlinked),
     window_appointments: num(raw.window_appointments),
     window_appointments_no_service: num(raw.window_appointments_no_service),
   };
@@ -97,9 +101,9 @@ export function retentionCards(rows: RetentionRow[]): ReportSummaryCard[] {
 
   return [
     {
-      label: "First consultations",
+      label: "First-time patients",
       value: count(t.new_consult_patients),
-      hint: "new patients whose first visit was a consultation",
+      hint: "patients whose first ever visit falls in this window",
     },
     {
       label: "Never came back",
@@ -124,48 +128,34 @@ export function retentionCards(rows: RetentionRow[]): ReportSummaryCard[] {
     {
       label: "Appointments that led to a procedure",
       value: share(t.appointments_with_procedure, t.appointments),
-      hint: `${count(t.appointments_with_procedure)} of ${count(t.appointments)} — a floor, see note below`,
+      hint: `${count(t.appointments_with_procedure)} of ${count(t.appointments)} attended appointments`,
     },
   ];
 }
 
 /**
- * The sentence under the title, and the one on the PDF.
+ * The note under the table, and the same note on the PDF.
  *
- * Two in five procedure records carry no appointment, so the appointment-level
- * rate is a floor rather than the truth. That belongs on the report itself:
- * a caveat kept in somebody's head is one the next reader does not get.
+ * It replaces a caveat that was both wrong and invisible. The old one said
+ * 40.7% of procedure records carry no appointment, so the rate was "a floor" -
+ * and pointed at a note the page had no way to render. Checked properly, the
+ * unlinked records are undated Salesforce imports that no dated figure should
+ * count: among procedures carrying a real date, virtually every one is linked.
+ * So the honest note is a small one, and it is now actually printed.
  */
 export function conversionCaveat(rows: RetentionRow[]): string {
   const t = retentionTotals(rows);
-  if (t.procedures <= 0 || t.procedures_unlinked <= 0) return "";
-  return (
-    `${count(t.procedures_unlinked)} of ${count(t.procedures)} procedure records ` +
-    `(${share(t.procedures_unlinked, t.procedures)}) carry no appointment link, so the ` +
-    `appointment-to-procedure rate is a floor, not the true figure. The patient figures ` +
-    `do not depend on that link.`
-  );
-}
+  // No separate "no procedures" guard: with none, undated is 0 and this
+  // returns anyway. One gate, so there is nothing here that never fires.
+  const undated = t.procedures - t.procedures_dated;
+  if (undated <= 0) return "";
 
-/**
- * The caveat that matters more than the figures.
- *
- * A consultation is recognised by the service written on the appointment,
- * and that field has been left blank on a growing share of bookings - none
- * in August, four fifths of October, almost all of November. Where it is
- * blank, nothing can be recognised, so a recent month shows a fall in new
- * patients that is really a fall in record-keeping. Printed, because a reader
- * who does not know this will read the last two months as a collapse in
- * business.
- */
-export function recordingCaveat(rows: RetentionRow[]): string {
-  const t = retentionTotals(rows);
-  if (t.window_appointments <= 0 || t.window_appointments_no_service <= 0) return "";
   return (
-    `${count(t.window_appointments_no_service)} of ${count(t.window_appointments)} appointments ` +
-    `(${share(t.window_appointments_no_service, t.window_appointments)}) in this window have no ` +
-    `service recorded. A consultation is recognised by that field, so months where it is left ` +
-    `blank are undercounted here - check the trend before reading a fall as lost business.`
+    `Of the ${count(t.procedures)} procedure records on file, ${count(undated)} were imported ` +
+    `from the old system without a date and cannot belong to any period. Among the ` +
+    `${count(t.procedures_dated)} that do carry a date, ${share(t.procedures_dated - t.procedures_dated_unlinked, t.procedures_dated)} ` +
+    `are linked to their appointment, so the appointment figure above is sound. ` +
+    `Cancellations and no-shows are excluded throughout.`
   );
 }
 

@@ -107,6 +107,15 @@ export interface ReportConfig {
   fetcher: (params: { from?: string; to?: string }) => Promise<any[]>;
   summary?: (rows: any[]) => ReportSummaryCard[];
   /**
+   * Lines printed under the table, on screen and in the PDF.
+   *
+   * For what a reader needs in order to not misread the figures: what a count
+   * excludes, where a denominator comes from. It exists because the retention
+   * report shipped with a card saying "see note below" and no note below -
+   * the caveat had been written, and there was nowhere to put it.
+   */
+  footnotes?: (rows: Record<string, unknown>[]) => string[];
+  /**
    * The rows as Excel and the PDF should show them, where that differs from the
    * table. A report that sets this is saying its exported sheet is a different
    * shape from its screen - the invoices report splits a bill across its
@@ -1175,13 +1184,13 @@ const retentionReport: ReportConfig = {
   key: RETENTION_KEY,
   title: "Patient Retention & Conversion",
   description:
-    "First-time patients whose first visit was a consultation, and whether they ever came back - plus how many patients ever have a procedure. Cancellations and no-shows are excluded throughout.",
+    "Patients whose first ever visit falls in this period, and whether they came back - plus how many patients ever have a procedure. Cancellations and no-shows are excluded throughout.",
   category: "Patients",
   defaultSort: { key: "consult_date", dir: "desc" },
   columns: [
     { key: "patient_name", label: "Patient", sortable: true },
     { key: "phone", label: "Phone", sortable: true },
-    { key: "consult_date", label: "First consultation", sortable: true, type: "date" },
+    { key: "consult_date", label: "First visit", sortable: true, type: "date" },
     { key: "service", label: "Booked as", sortable: true },
     { key: "doctor", label: "Doctor", sortable: true },
     {
@@ -1195,7 +1204,7 @@ const retentionReport: ReportConfig = {
     { key: "days_since", label: "Days since", sortable: true, type: "number" },
   ],
   filters: [
-    { key: "dateRange", label: "First consultation", type: "dateRange", field: "consult_date" },
+    { key: "dateRange", label: "First visit", type: "dateRange", field: "consult_date" },
     {
       key: "returned", label: "Came back", type: "select", field: "returned",
       options: [{ value: "Never", label: "Never came back" }, { value: "Yes", label: "Came back" }],
@@ -1226,6 +1235,8 @@ const retentionReport: ReportConfig = {
     return (data ?? []) as unknown as RetentionRow[];
   },
   summary: (rows) => retentionCards(rows as RetentionRow[]),
+  // The note the cards used to point at and the page had no way to show.
+  footnotes: (rows) => [conversionCaveat(rows as unknown as RetentionRow[])].filter(Boolean),
   chart: {
     title: "First-timers who never came back, by month",
     valueLabel: "Patients",

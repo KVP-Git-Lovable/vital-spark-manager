@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  conversionCaveat, lapsedByMonth, recordingCaveat, retentionCards, retentionTotals, share,
+  conversionCaveat, lapsedByMonth, retentionCards, retentionTotals, share,
   treatedOnceThenGone, type RetentionRow, type RetentionTotals,
 } from "./retentionReport";
 import { REPORTS } from "./reportsCatalog";
@@ -26,6 +26,10 @@ const TOTALS: RetentionTotals = {
   appointments_with_procedure: 22916,
   procedures: 38936,
   procedures_unlinked: 15853,
+  // Of the 23,110 procedures carrying a real date, 23,093 are linked. The
+  // 15,836 unlinked ones are undated imports from the old system.
+  procedures_dated: 23110,
+  procedures_dated_unlinked: 17,
   window_appointments: 11732,
   window_appointments_no_service: 2146,
 };
@@ -91,7 +95,7 @@ describe("the cards above the table", () => {
 
   it("gives the clinic's two answers with their denominators", () => {
     const c = cards([row({ had_procedure: true, returned: false })]);
-    expect(c["First consultations"].value).toBe("2,948");
+    expect(c["First-time patients"].value).toBe("2,948");
     expect(c["Never came back"].value).toBe("1,861");
     expect(c["Never came back"].hint).toContain("63.1%");
     expect(c["Patients who ever had a procedure"].value).toBe("15,706");
@@ -111,49 +115,64 @@ describe("the cards above the table", () => {
     expect(c["Consulted, nothing done, gone"].value).toBe("413");
   });
 
-  it("calls the appointment rate a floor on the card itself", () => {
+  it("gives the appointment rate its denominator, and claims nothing more", () => {
+    // It used to say "a floor, see note below" - a hedge based on a
+    // miscount, pointing at a note the page could not render.
     const c = cards([row()]);
     expect(c["Appointments that led to a procedure"].value).toBe("39.2%");
-    expect(c["Appointments that led to a procedure"].hint).toContain("floor");
+    expect(c["Appointments that led to a procedure"].hint).toContain("22,916");
+    expect(c["Appointments that led to a procedure"].hint).toContain("58,428");
+    expect(c["Appointments that led to a procedure"].hint).not.toMatch(/floor/i);
   });
 
   it("says nothing it cannot support when there are no rows", () => {
     const c = cards([]);
-    expect(c["First consultations"].value).toBe("0");
+    expect(c["First-time patients"].value).toBe("0");
     expect(c["Never came back"].hint).toContain("—");
   });
 });
 
 describe("the caveat", () => {
-  it("prints the unlinked procedures and what they mean", () => {
+  it("explains the unlinked records instead of calling the rate a guess", () => {
+    // The old version said 40.7% of procedures carry no appointment, so the
+    // rate was "a floor" - counting 15,836 undated imports that no dated
+    // figure should include. Among DATED procedures, 23,093 of 23,110 are
+    // linked, so the honest note is a reassuring one.
     const text = conversionCaveat([row()]);
-    expect(text).toContain("15,853");
     expect(text).toContain("38,936");
-    expect(text).toContain("40.7%");
-    expect(text).toContain("floor");
+    expect(text).toContain("15,826");   // imported without a date
+    expect(text).toContain("23,110");
+    expect(text).toContain("99.9%");
+    expect(text).not.toMatch(/floor/i);
+    expect(text).toMatch(/cancellations and no-shows are excluded/i);
   });
 
-  it("says nothing when every procedure is linked", () => {
-    expect(conversionCaveat([row({ totals: { ...TOTALS, procedures_unlinked: 0 } })])).toBe("");
+  it("says nothing when every procedure carries a date", () => {
+    expect(conversionCaveat([row({ totals: { ...TOTALS, procedures_dated: TOTALS.procedures } })])).toBe("");
     expect(conversionCaveat([])).toBe("");
   });
 });
 
-describe("the recording caveat", () => {
-  it("warns that a blank service makes a month undercount", () => {
-    // The finding behind it: the service field is blank on 79% of October's
-    // appointments and 97% of November's, so those months look like a
-    // collapse in new patients when they are a collapse in record-keeping.
-    const text = recordingCaveat([row()]);
-    expect(text).toContain("2,146");
-    expect(text).toContain("11,732");
-    expect(text).toContain("18.3%");
-    expect(text).toMatch(/undercounted/);
+describe("the note actually reaches the page", () => {
+  const report = REPORTS.find((r) => r.key === "retention_conversion")!;
+
+  it("is wired to footnotes, not left dangling", () => {
+    // The whole defect: a card said "see note below" while conversionCaveat
+    // was imported and never called, and ReportConfig had no field for it.
+    expect(typeof report.footnotes).toBe("function");
+    const notes = report.footnotes!([row() as unknown as Record<string, unknown>]);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toContain("23,110");
   });
 
-  it("says nothing when every appointment names its service", () => {
-    expect(recordingCaveat([row({ totals: { ...TOTALS, window_appointments_no_service: 0 } })])).toBe("");
-    expect(recordingCaveat([])).toBe("");
+  it("drops an empty note rather than printing a blank line", () => {
+    expect(report.footnotes!([])).toEqual([]);
+  });
+
+  it("no card promises a note that is not there", () => {
+    for (const card of retentionCards([row()])) {
+      expect(card.hint ?? "").not.toMatch(/see note below/i);
+    }
   });
 });
 
@@ -206,6 +225,54 @@ describe("the report in the catalogue", () => {
     const source = readFileSync("src/lib/reportsCatalog.ts", "utf8")
       .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
     expect(source).toContain('supabase.rpc("clinic_retention_conversion"');
+  });
+});
+
+describe("the migration that stops it depending on the service field", () => {
+  const sql = readFileSync("supabase/migrations/20261127190000_retention_without_the_broken_service_field.sql", "utf8")
+    .replace(/^\s*--.*$/gm, "");
+
+  it("no longer discards a patient because the service box was left empty", () => {
+    // appointments.service is blank on 79% of Oct 2026 bookings and 97% of
+    // Nov's. Requiring it to say "consult" made those months look like a
+    // collapse in new patients that was really a collapse in typing.
+    expect(sql).not.toMatch(/service ilike/i);
+    expect(sql).toMatch(/where fi\.start_time >= v_from\s+and fi\.start_time < v_to\s*\)/);
+  });
+
+  it("still returns the service as something to look at", () => {
+    expect(sql).toMatch(/s\.service,/);
+  });
+
+  it("counts linkage among DATED procedures, which is the only honest denominator", () => {
+    expect(sql).toMatch(/'procedures_dated',\s*\(\s*select count\(\*\) from public\.procedures p where not p\.date_not_recorded\)/);
+    // Both halves, or the unlinked count silently becomes 15,853 again -
+    // the very figure that produced the misleading "floor" caveat.
+    expect(sql).toMatch(/not p\.date_not_recorded and p\.appointment_id is null/);
+  });
+
+  it("keeps every totals key the published build may read", () => {
+    for (const key of [
+      "new_consult_patients", "never_returned", "never_returned_no_procedure",
+      "patients_on_file", "patients_attended", "patients_with_procedure",
+      "appointments", "appointments_with_procedure", "procedures",
+      "procedures_unlinked", "window_appointments", "window_appointments_no_service",
+    ]) {
+      expect(sql).toContain(`'${key}',`);
+    }
+  });
+
+  it("keeps the staff gate and the clinic's own day", () => {
+    expect(sql).toMatch(/if not public\.is_active_staff\(\) then/);
+    expect(sql).toMatch(/raise exception/i);
+    expect(sql).toMatch(/at time zone 'Asia\/Kolkata'/);
+    expect(sql).toMatch(/\bstable\b/i);
+    expect(sql).toMatch(/revoke all on function[\s\S]*from public, anon/i);
+  });
+
+  it("changes no signature, so the published build is untouched", () => {
+    expect(sql).toMatch(/create or replace function public\.clinic_retention_conversion\(\s*p_from date,\s*p_to date\s*\)/);
+    expect(sql).not.toMatch(/drop function/i);
   });
 });
 

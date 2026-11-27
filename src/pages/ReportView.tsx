@@ -199,6 +199,10 @@ const ReportView = ({ reportKey }: { reportKey?: string } = {}) => {
     ? summaryQuery.data ?? []
     : report.summary?.(filteredRows) ?? [];
 
+  // Computed from the same rows the cards used, never from the unfiltered set:
+  // a note that disagreed with the figure above it would be worse than none.
+  const footnotes = report.footnotes?.(filteredRows) ?? [];
+
   const total = isPaged ? pagedQuery.data?.total ?? 0 : filteredRows.length;
   const pageSize = report.paged?.pageSize ?? 50;
   const totalPages = isPaged ? Math.max(1, Math.ceil(total / pageSize)) : 1;
@@ -271,6 +275,7 @@ const ReportView = ({ reportKey }: { reportKey?: string } = {}) => {
         dayOnly,
         totals,
         recordCount: count,
+        footnotes,
         // A bill's second line is blank under Date and Patient because they
         // are on the line above, not because nothing was recorded.
         emptyCell: report.exportRows ? "" : undefined,
@@ -396,6 +401,16 @@ const ReportView = ({ reportKey }: { reportKey?: string } = {}) => {
           // for every other report, so nothing else changes colour.
           rowClassName={decisionRowClass}
         />
+      )}
+
+      {/* The notes a card may point at. Rendered for the same rows the cards
+          counted, so a figure and its caveat can never disagree. */}
+      {!loading && footnotes.length > 0 && (
+        <div className="mt-3 text-xs text-muted-foreground space-y-1">
+          {footnotes.map((note, i) => (
+            <p key={i} className="leading-relaxed">{note}</p>
+          ))}
+        </div>
       )}
     </div>
   );

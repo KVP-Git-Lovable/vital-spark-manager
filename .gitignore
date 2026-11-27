@@ -24,3 +24,7 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Generated review pages. These carry patient names and photo URLs, so they
+# stay out of the repository - they are built on demand and sent to the user.
+reports/
